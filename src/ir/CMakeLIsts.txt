@@ -1,0 +1,8 @@
+# qcanopy_ir: the circuit IR (include/qcanopy/ir.hpp).
+ 
+add_library(qcanopy_ir INTERFACE)
+add_library(qcanopy::ir ALIAS qcanopy_ir)
+ 
+target_include_directories(qcanopy_ir INTERFACE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(qcanopy_ir INTERFACE cxx_std_17)
+ 
