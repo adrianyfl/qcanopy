@@ -14,7 +14,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
  
 # Shared warning flags: link into every target we own
 add_library(qcanopy_warnings INTERFACE)
-target_compile_options(qcanopy_warnings INTERFACE -Wall -Wextra -Wpedantic)
+if(MSVC)
+  target_compile_options(qcanopy_warnings INTERFACE /W4 /permissive-)
+else()
+  target_compile_options(qcanopy_warnings INTERFACE -Wall -Wextra -Wpedantic)
+endif()
  
 # Modules
 add_subdirectory(src/ir)                 # qcanopy::ir
