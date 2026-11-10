@@ -1,0 +1,20 @@
+add_library(qcanopy_generator STATIC generator.cpp dataset_io.cpp qasm_writer.cpp)
+add_library(qcanopy::generator ALIAS qcanopy_generator)
+target_link_libraries(qcanopy_generator PUBLIC qcanopy::ir qcanopy::rewrite PRIVATE qcanopy_warnings)
+# GCC 8 keeps C++17 filesystem in a separate library.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+  target_link_libraries(qcanopy_generator PUBLIC stdc++fs)
+endif()
+find_package(Git QUIET)
+set(QCANOPY_SOURCE_COMMIT "unknown")
+if(GIT_FOUND)
+  execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" OUTPUT_VARIABLE QCANOPY_GIT_HEAD
+    OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE QCANOPY_GIT_RESULT)
+  if(QCANOPY_GIT_RESULT EQUAL 0)
+    set(QCANOPY_SOURCE_COMMIT "${QCANOPY_GIT_HEAD}")
+  endif()
+endif()
+target_compile_definitions(qcanopy_generator PRIVATE QCANOPY_SOURCE_COMMIT="${QCANOPY_SOURCE_COMMIT}")
+add_executable(qcanopy_generate ${PROJECT_SOURCE_DIR}/tools/generate_cases.cpp)
+target_link_libraries(qcanopy_generate PRIVATE qcanopy::generator qcanopy_warnings)
