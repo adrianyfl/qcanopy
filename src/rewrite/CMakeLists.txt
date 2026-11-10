@@ -2,6 +2,7 @@
 
 add_library(qcanopy_rewrite STATIC
   normalize.cpp
+  peel.cpp
 )
 add_library(qcanopy::rewrite ALIAS qcanopy_rewrite)
 
