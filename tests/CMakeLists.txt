@@ -8,6 +8,7 @@ function(qcanopy_add_test name source)
 endfunction()
  
 qcanopy_add_test(test_ir_header cpp/test_ir_header.cpp qcanopy::ir)
+qcanopy_add_test(test_normalize cpp/test_normalize.cpp qcanopy::rewrite)
  
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cpp/test_gates.cpp)
   qcanopy_add_test(test_gates cpp/test_gates.cpp qcanopy::ir)

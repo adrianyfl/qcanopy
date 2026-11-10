@@ -22,6 +22,7 @@ endif()
  
 # Modules
 add_subdirectory(src/ir)                 # qcanopy::ir
+add_subdirectory(src/rewrite)            # qcanopy::rewrite
  
 # Tests
 if(QCANOPY_BUILD_TESTS)
