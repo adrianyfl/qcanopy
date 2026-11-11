@@ -1,5 +1,8 @@
 # Circuit-pair test-case generator
 
+For your first dataset, start with the [quick user guide](generator_quickstart.md).
+This page is the detailed format, construction, and API reference.
+
 `qcanopy_generate` produces deterministic labeled circuit pairs using the current
 `qcanopy::Circuit` IR. The reusable `qcanopy::generator` library separates generation,
 verification, and export. It depends on the existing IR and DAG normalization
