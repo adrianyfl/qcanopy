@@ -12,8 +12,8 @@ namespace qcanopy {
     // A simple state-vector representation of a quantum system.
     class StateVector {
     public:
-        int num_qubits;
-        std::vector<std::complex<double>> amplitudes;
+        int num_qbits;
+        std::vector<cplx> amplitudes;
 
         // Initializes the |0...0> state for n qubits.
         explicit StateVector(int n);
@@ -31,10 +31,10 @@ namespace qcanopy {
         Simulator() = default;
 
         // Executes a flattened circuit and returns the final state.
-        StateVector execute(const Circuit& circuit);
+        StateVector execute(const Circuit& circuit) const;
 
         // Extracts the topological schedule from the DAG and executes it.
-        StateVector execute(const CircuitDAG& dag);
+        StateVector execute(const CircuitDAG& dag) const;
 
     private:
         // Core bitwise application of unitary matrices.
