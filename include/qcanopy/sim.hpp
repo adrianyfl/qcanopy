@@ -3,6 +3,8 @@
 #include <vector>
 #include <complex>
 #include <cstdint>
+#include <cmath>
+#include <algorithm>
 #include "qcanopy/ir.hpp"
 #include "qcanopy/dag.hpp"
 

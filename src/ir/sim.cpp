@@ -32,7 +32,7 @@ namespace qcanopy {
             cplx phase_factor = std::polar(1.0, phase);
             // multiply each amplitude with phase factor.
             for (auto& amp : amplitudes) {
-                amp[i] *= phase_factor;
+                amp *= phase_factor;
             }
         }
     };
@@ -42,7 +42,7 @@ namespace qcanopy {
         Simulator() = default;
 
         // Executes a flattened circuit and returns the final state.
-        Simulator::execute(const Circuit& circuit) {
+        StateVector execute(const Circuit& circuit) {
             // Initialize the state vector
             StateVector state(circuit.n);
 
@@ -61,7 +61,7 @@ namespace qcanopy {
         }
 
         // Execute directly from the DAG
-        StateVector Simulator::execute(const CircuitDAG& dag) {
+        StateVector execute(const CircuitDAG& dag) {
             // Flatten the graph into a linear schedule, then pass it to the main execute function
             StateVector final_state = execute(dag.to_circuit());
             
@@ -74,7 +74,7 @@ namespace qcanopy {
         void apply_1q_gate(StateVector& state, const Gate& gate) const{  
             int q = gate.q[0];                   // The target qubit
             size_t bit_mask = 1ULL << q;         // A mask for the q-th bit
-            size_t half_dim = state.amplitude.size() / 2;
+            size_t half_dim = state.amplitudes.size() / 2;
 
             // Grab the matrix elements
             cplx u00 = gate.m[0], u01 = gate.m[1];
@@ -130,8 +130,8 @@ namespace qcanopy {
                 size_t idx00 = ((temp >> q_max) << (q_max + 1)) | (temp & ((1ULL << q_max) - 1));
 
                 // Produce the other 3 pairs
-                size_t idx01 = idx00 | mask1;           // q0 = 0, q1 = 1
-                size_t idx10 = idx00 | mask0;           // q0 = 1, q1 = 0
+                size_t idx01 = idx00 | mask0;           // q0 = 1, q1 = 0
+                size_t idx10 = idx00 | mask1;           // q0 = 0, q1 = 1
                 size_t idx11 = idx00 | mask0 | mask1;   // q0 = 1, q1 = 1
 
                 // Grab amplitudes
@@ -147,5 +147,5 @@ namespace qcanopy {
                 state.amplitudes[idx11] = m[12]*a00 + m[13]*a01 + m[14]*a10 + m[15]*a11;
             }
         }
-    }
+    };
 } // namespace qcanopy
