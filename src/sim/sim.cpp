@@ -46,6 +46,7 @@ namespace qcanopy {
                 throw std::runtime_error("Simulator only supports 1-qubit and 2-qubit gates.");
             }
         }
+        state.apply_global_phase(circuit.global_phase);
         // Return final state vector
         return state;
     }
