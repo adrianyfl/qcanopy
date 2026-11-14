@@ -1,5 +1,7 @@
 #include "qcanopy/sim.hpp"
 
+#include <stdexcept>
+
 namespace qcanopy {
 
     // Initializes state vector.
@@ -33,8 +35,16 @@ namespace qcanopy {
 
     // Executes a flattened circuit and returns the final state.
     StateVector Simulator::execute(const Circuit& circuit) const{
-        // Initialize the state vector
-        StateVector state(circuit.n);
+        // Start from |0...0>
+        return execute(circuit, StateVector(circuit.n));
+    }
+
+    // Executes a flattened circuit starting from a caller-provided state.
+    StateVector Simulator::execute(const Circuit& circuit, StateVector state) const{
+        if (state.num_qbits != circuit.n ||
+            state.amplitudes.size() != (std::size_t{1} << circuit.n)) {
+            throw std::invalid_argument("Simulator::execute: initial state size does not match circuit");
+        }
 
         // Iterate through the gates and apply them
         for (const auto& gate : circuit.gates) {

@@ -33,6 +33,10 @@ namespace qcanopy {
         // Executes a flattened circuit and returns the final state.
         StateVector execute(const Circuit& circuit) const;
 
+        // Executes a flattened circuit starting from `initial` instead of |0...0>.
+        // Throws std::invalid_argument if initial.num_qbits != circuit.n.
+        StateVector execute(const Circuit& circuit, StateVector initial) const;
+
         // Extracts the topological schedule from the DAG and executes it.
         StateVector execute(const CircuitDAG& dag) const;
 
