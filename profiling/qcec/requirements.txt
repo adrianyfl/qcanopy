@@ -1,0 +1,3 @@
+# Profiler runtime. Pin mqt.qcec so runs are comparable; bump deliberately and
+# record the change (the version is stored in every run.json).
+mqt.qcec==3.12.0

@@ -4,3 +4,4 @@ build-*/
 .tools/
 generated/
 __pycache__/
+.venv/

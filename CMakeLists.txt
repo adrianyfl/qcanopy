@@ -23,7 +23,9 @@ endif()
 # Modules
 add_subdirectory(src/ir)                 # qcanopy::ir
 add_subdirectory(src/rewrite)            # qcanopy::rewrite
-add_subdirectory(src/sim)                # qcanpoy::sim
+if(EXISTS ${PROJECT_SOURCE_DIR}/src/sim/CMakeLists.txt)
+  add_subdirectory(src/sim)              # qcanopy::sim (not present on every branch)
+endif()
 add_subdirectory(src/generator)          # qcanopy::generator, qcanopy_generate
  
 # Tests

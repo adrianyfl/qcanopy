@@ -61,6 +61,8 @@ prefix does not establish circuit equivalence.
 - [Generator reference](docs/test_case_generator.md): complete CLI contract,
   constructions, reproducibility, serialization schemas, and C++ API.
 - [Peeling algorithm](src/rewrite/algorithm.md): matching prefix/suffix removal.
+- [MQT QCEC profiler](profiling/qcec/README.md): benchmark QCEC on generated pairs
+  and render an HTML report.
 
 Datasets written under `generated/` are Git-ignored. Generate them locally rather
 than expecting sample datasets or workspace-specific build tools in a fresh clone.

@@ -1,0 +1,31 @@
+# Size scaling of QCEC's default configuration plus the main DD checkers.
+# Expect tens of minutes; large-qubit construction checks may hit the timeout.
+name = "scaling"
+repeats = 3
+timeout = 60.0
+warmup = true
+
+[generator]
+qubits = [4, 8, 12, 16, 20, 24]
+gates = [100, 400, 1600]
+pairs = 16
+gate_set = ["clifford-t", "mixed"]
+angle_mode = "mixed"
+prefix_fraction = 0.5
+equivalent_fraction = 0.5
+seed = 759
+verify = "small"
+
+[strategies.default]
+
+[strategies.alternating]
+run_alternating_checker = true
+run_construction_checker = false
+run_simulation_checker = false
+run_zx_checker = false
+
+[strategies.construction]
+run_alternating_checker = false
+run_construction_checker = true
+run_simulation_checker = false
+run_zx_checker = false

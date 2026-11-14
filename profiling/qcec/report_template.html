@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QCEC Profile Report</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.04);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --good-text: #006300;
+  --seq-lo: #cde2fb; --seq-hi: #0d366b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.05);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --good-text: #0ca30c; --seq-lo: #1c2a3d; --seq-hi: #86b6ef;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.05);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --good-text: #0ca30c; --seq-lo: #1c2a3d; --seq-hi: #86b6ef;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+h2 { font-size: 16px; margin: 0 0 2px; font-weight: 600; }
+.sub { color: var(--ink-2); margin: 0 0 12px; }
+.meta { color: var(--muted); font-size: 13px; }
+.meta b { color: var(--ink-2); font-weight: 500; }
+section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 18px 18px 14px; margin-top: 16px; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: end; margin: 18px 0 0; }
+.controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-2); }
+select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 8px; min-width: 140px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 16px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 26px; font-weight: 600; margin-top: 2px; }
+.tile .note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.status { display: inline-flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted)); flex: none; }
+.st-correct { --c: var(--good); } .st-probable { --c: var(--s1); } .st-incorrect { --c: var(--critical); }
+.st-inconclusive { --c: var(--warning); } .st-timeout { --c: var(--serious); } .st-error { --c: var(--critical); }
+.st-skipped { --c: var(--axis); }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--ink-2); font-weight: 500; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+td a { color: var(--ink-2); }
+.key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin: 8px 0 4px; }
+.legend span { display: inline-flex; align-items: center; }
+.multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px 20px; }
+.chart-title { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; }
+svg { display: block; overflow: visible; }
+svg text { fill: var(--muted); font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--axis); stroke-width: 1; }
+svg .hit { fill: transparent; cursor: default; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); display: none; max-width: 320px; }
+#tip .t { font-weight: 600; margin-bottom: 2px; }
+#tip .r { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-2); }
+#tip .r b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.empty { color: var(--muted); padding: 12px 0; }
+details summary { cursor: pointer; color: var(--ink-2); }
+pre { background: var(--wash); padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+.cell-shade { position: relative; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">QCEC profile</h1>
+  <div class="meta" id="meta"></div>
+
+  <div class="controls">
+    <label>Metric <select id="f-metric">
+      <option value="wall_s">Verify wall time</option>
+      <option value="check_s">QCEC check time</option>
+      <option value="cpu_s">CPU time (all threads)</option>
+      <option value="per_gate">Verify time per gate (A+B)</option>
+      <option value="load_s">QASM load time (A+B)</option>
+      <option value="rss_delta_mb">Peak RSS increase</option>
+    </select></label>
+    <label>Gate set <select id="f-gate_set"></select></label>
+    <label>Angle mode <select id="f-angle_mode"></select></label>
+    <label>Expected <select id="f-expected"></select></label>
+    <label>Prefix fraction <select id="f-prefix_fraction"></select></label>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <h2>Strategies</h2>
+    <p class="sub">One row per QCEC configuration. Outcomes compare QCEC's verdict to the generator's proven label. Times use the selected metric; repeats are collapsed to their median.</p>
+    <div class="table-wrap"><table id="strategy-table"></table></div>
+  </section>
+
+  <section>
+    <h2>Scaling with qubit count</h2>
+    <p class="sub">Median of the selected metric per qubit count, one panel per base gate count. Log scale.</p>
+    <div class="legend" id="legend-qubits"></div>
+    <div class="multiples" id="chart-qubits"></div>
+  </section>
+
+  <section>
+    <h2>Scaling with gate count</h2>
+    <p class="sub">Median per base gate count, one panel per qubit count. Log scale.</p>
+    <div class="legend" id="legend-gates"></div>
+    <div class="multiples" id="chart-gates"></div>
+  </section>
+
+  <section>
+    <h2>Size heatmap</h2>
+    <p class="sub">Median per qubits × gates cell, one panel per strategy. All panels share one color scale (darker means more).</p>
+    <div class="multiples" id="chart-heat"></div>
+  </section>
+
+  <section>
+    <h2>Equivalent vs non-equivalent</h2>
+    <p class="sub">The dot is the median; the line spans p10 to p90. Log scale.</p>
+    <div class="legend" id="legend-rel"></div>
+    <div id="chart-rel"></div>
+  </section>
+
+  <section>
+    <h2>Which checker decided</h2>
+    <p class="sub">The QCEC checker that produced each final verdict. "preprocessing" means QCEC decided before any checker ran.</p>
+    <div class="legend" id="legend-dec"></div>
+    <div id="chart-dec"></div>
+  </section>
+
+  <section>
+    <h2>By equivalence-preserving transform</h2>
+    <p class="sub">Median of the selected metric by the generator's construction (negatives also have an appended X). Cell shading is relative within each column.</p>
+    <div class="table-wrap"><table id="transform-table"></table></div>
+  </section>
+
+  <section>
+    <h2>Flagged checks</h2>
+    <p class="sub">Wrong verdicts, errors, timeouts, and inconclusive results. A wrong verdict on a proven label points to a checker bug or a parsing problem.</p>
+    <div class="table-wrap"><table id="flagged-table"></table></div>
+  </section>
+
+  <section>
+    <h2>Slowest checks</h2>
+    <p class="sub">The 25 highest values of the selected metric. File links resolve when the report is opened from its run directory.</p>
+    <div class="table-wrap"><table id="slow-table"></table></div>
+  </section>
+
+  <section>
+    <h2>Run details</h2>
+    <div class="table-wrap"><table id="run-table"></table></div>
+    <details style="margin-top:10px"><summary>Sweep configuration</summary><pre id="sweep-json"></pre></details>
+  </section>
+</main>
+<div id="tip"></div>
+
+<script>
+const DATA = /*__DATA__*/null;
+(() => {
+const meta = DATA.meta, raw = DATA.records;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const strategies = Object.keys(meta.sweep.strategies);
+const sColor = s => `var(--s${(strategies.indexOf(s) % 8) + 1})`;
+// Worst-of-repeats order; "skipped" is lowest so any real result wins.
+const SEVERITY = ["skipped", "correct", "probable", "inconclusive", "timeout", "incorrect", "error"];
+const COLUMNS = ["correct", "probable", "inconclusive", "timeout", "incorrect", "error", "skipped"];
+const OUTCOME_LABEL = {correct: "Correct", probable: "Probable", incorrect: "Wrong", inconclusive: "Inconclusive", timeout: "Timeout", error: "Error", skipped: "Skipped"};
+const METRICS = {
+  wall_s: {label: "Verify wall time", unit: "s", log: true},
+  check_s: {label: "QCEC check time", unit: "s", log: true},
+  cpu_s: {label: "CPU time", unit: "s", log: true},
+  per_gate: {label: "Verify time per gate", unit: "s", log: true},
+  load_s: {label: "QASM load time", unit: "s", log: true},
+  rss_delta_mb: {label: "Peak RSS increase", unit: "MB", log: false},
+};
+const CHECKERS = ["decision_diagram_alternating", "decision_diagram_construction", "decision_diagram_simulation", "zx", "hsf", "preprocessing", "none"];
+const CHECKER_LABEL = {decision_diagram_alternating: "DD alternating", decision_diagram_construction: "DD construction",
+  decision_diagram_simulation: "DD simulation", zx: "ZX", hsf: "HSF", preprocessing: "Preprocessing", none: "No verdict"};
+const CHECKER_COLOR = {decision_diagram_alternating: "var(--s1)", decision_diagram_construction: "var(--s2)",
+  decision_diagram_simulation: "var(--s3)", zx: "var(--s7)", hsf: "var(--s5)", preprocessing: "var(--s6)", none: "var(--axis)"};
+
+function fmtTime(s) {
+  if (s == null || !isFinite(s)) return "–";
+  if (s < 1e-6) return (s * 1e9).toFixed(0) + " ns";
+  if (s < 1e-5) return (s * 1e6).toFixed(2) + " µs";
+  if (s < 1e-3) return (s * 1e6).toFixed(0) + " µs";
+  if (s < 1) return (s * 1e3).toFixed(s < 0.01 ? 2 : 1) + " ms";
+  if (s < 100) return s.toFixed(2) + " s";
+  return s.toFixed(0) + " s";
+}
+function fmtMB(v) { return v == null || !isFinite(v) ? "–" : (Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(0)) + " MB"; }
+const fmtFor = m => METRICS[m].unit === "s" ? fmtTime : fmtMB;
+// Clean axis ticks: 100 µs / 1 ms / 10 s rather than 100.0 ms / 10.00 s.
+function fmtTick(fmt) {
+  if (fmt !== fmtTime) return v => (Math.abs(v) < 10 ? +v.toFixed(2) : Math.round(v)) + " MB";
+  return v => v < 1e-6 ? +(v * 1e9).toPrecision(3) + " ns" : v < 1e-3 ? +(v * 1e6).toPrecision(3) + " µs" : v < 1 ? +(v * 1e3).toPrecision(3) + " ms" : +v.toPrecision(3) + " s";
+}
+function quantile(xs, p) {
+  if (!xs.length) return NaN;
+  const a = [...xs].sort((x, y) => x - y), k = (a.length - 1) * p, lo = Math.floor(k), hi = Math.min(lo + 1, a.length - 1);
+  return a[lo] + (a[hi] - a[lo]) * (k - lo);
+}
+const median = xs => quantile(xs, 0.5);
+const uniq = (xs) => [...new Set(xs)].sort((a, b) => (typeof a === "number" ? a - b : String(a).localeCompare(String(b))));
+
+// Collapse repeats: one "check" per dataset/case/strategy, metrics = median over repeats, outcome = worst.
+const checks = (() => {
+  const groups = new Map();
+  for (const r of raw) {
+    const k = `${r.dataset}/${r.case_id}/${r.strategy}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  return [...groups.values()].map(rs => {
+    const c = {...rs[0], repeats: rs.length};
+    for (const m of ["wall_s", "check_s", "cpu_s", "rss_delta_mb", "peak_rss_mb", "load_s", "preprocessing_s"]) {
+      const v = rs.map(r => r[m]).filter(x => x != null && isFinite(x));
+      c[m] = v.length ? median(v) : null;
+    }
+    c.outcome = rs.map(r => r.outcome).reduce((a, b) => SEVERITY.indexOf(b) > SEVERITY.indexOf(a) ? b : a);
+    const totalGates = (c.a_gates || 0) + (c.b_gates || 0);
+    c.per_gate = c.wall_s != null && totalGates ? c.wall_s / totalGates : null;
+    if (c.outcome === "skipped") for (const m of ["wall_s", "check_s", "cpu_s", "rss_delta_mb", "per_gate", "load_s"]) c[m] = null;
+    return c;
+  });
+})();
+
+// ---------- filters
+const FILTERS = ["gate_set", "angle_mode", "expected", "prefix_fraction"];
+for (const f of FILTERS) {
+  const vals = uniq(checks.map(c => c[f]));
+  const sel = $("f-" + f);
+  sel.innerHTML = `<option value="*">All</option>` + vals.map(v => `<option value="${esc(v)}">${esc(String(v).replace("_", " "))}</option>`).join("");
+  if (vals.length < 2) sel.parentElement.style.display = "none";
+}
+for (const id of ["f-metric", ...FILTERS.map(f => "f-" + f)]) {
+  $(id).addEventListener("change", () => {
+    try { localStorage.setItem("qcec-" + id, $(id).value); } catch (e) {}
+    render();
+  });
+  try { const v = localStorage.getItem("qcec-" + id); if (v && [...$(id).options].some(o => o.value === v)) $(id).value = v; } catch (e) {}
+}
+const filtered = () => checks.filter(c => FILTERS.every(f => $("f-" + f).value === "*" || String(c[f]) === $("f-" + f).value));
+
+// ---------- tooltip
+const tip = $("tip");
+function showTip(ev, title, rows) {
+  tip.innerHTML = `<div class="t">${esc(title)}</div>` + rows.map(([k, v]) => `<div class="r"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("");
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - 14;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.style.display = "none"; };
+function bindTip(el, title, rows) {
+  el.addEventListener("mousemove", ev => showTip(ev, title, rows));
+  el.addEventListener("mouseleave", hideTip);
+}
+
+// ---------- svg helpers
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function text(parent, x, y, s, attrs = {}) { const t = el("text", {x, y, ...attrs}, parent); t.textContent = s; return t; }
+function scaleY(lo, hi, top, bottom, log) {
+  if (log) { const a = Math.log10(lo), b = Math.log10(hi); return v => bottom - (Math.log10(Math.max(v, lo)) - a) / (b - a || 1) * (bottom - top); }
+  return v => bottom - (v - lo) / (hi - lo || 1) * (bottom - top);
+}
+function domain(vals, log) {
+  const v = vals.filter(x => x != null && isFinite(x) && (!log || x > 0));
+  if (!v.length) return null;
+  let lo = Math.min(...v), hi = Math.max(...v);
+  if (log) { lo = Math.pow(10, Math.floor(Math.log10(lo))); hi = Math.pow(10, Math.ceil(Math.log10(hi))); if (lo === hi) hi = lo * 10; }
+  else { lo = Math.min(0, lo); hi = hi <= lo ? lo + 1 : hi * 1.08; }
+  return [lo, hi];
+}
+function ticks(lo, hi, log) {
+  if (log) { const out = []; for (let e = Math.round(Math.log10(lo)); e <= Math.round(Math.log10(hi)); e++) out.push(Math.pow(10, e)); return out.length > 7 ? out.filter((_, i) => i % 2 === 0) : out; }
+  const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 4 || 1)));
+  const s = [1, 2, 5, 10].map(m => m * step).find(s => (hi - lo) / s <= 5) || step * 10;
+  const out = []; for (let v = Math.ceil(lo / s) * s; v <= hi + 1e-12; v += s) out.push(+v.toFixed(10)); return out;
+}
+
+// Line chart over categorical x (equally spaced), one line per series.
+function lineChart(container, {xs, series, log, fmt, xLabel, dom, title}) {
+  const wrap = document.createElement("div");
+  if (title) { const t = document.createElement("div"); t.className = "chart-title"; t.textContent = title; wrap.appendChild(t); }
+  container.appendChild(wrap);
+  const W = Math.max(280, wrap.clientWidth || 300), H = 210, m = {l: 58, r: 14, t: 12, b: 34};
+  const svg = el("svg", {width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": title || "line chart"}, wrap);
+  const y = scaleY(dom[0], dom[1], m.t, H - m.b, log);
+  const xp = i => xs.length === 1 ? (m.l + W - m.r) / 2 : m.l + 8 + i * (W - m.l - m.r - 16) / (xs.length - 1);
+  for (const tv of ticks(dom[0], dom[1], log)) {
+    el("line", {x1: m.l, x2: W - m.r, y1: y(tv), y2: y(tv), class: "grid"}, svg);
+    text(svg, m.l - 6, y(tv) + 4, fmtTick(fmt)(tv), {"text-anchor": "end"});
+  }
+  el("line", {x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, class: "axis"}, svg);
+  xs.forEach((xv, i) => text(svg, xp(i), H - m.b + 16, xv, {"text-anchor": "middle"}));
+  text(svg, (m.l + W - m.r) / 2, H - 4, xLabel, {"text-anchor": "middle"});
+  for (const s of series) {
+    const pts = s.points.filter(p => p.y != null && isFinite(p.y) && (!log || p.y > 0));
+    if (pts.length > 1) el("polyline", {points: pts.map(p => `${xp(xs.indexOf(p.x))},${y(p.y)}`).join(" "),
+      fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round"}, svg);
+    for (const p of pts) {
+      const cx = xp(xs.indexOf(p.x)), cy = y(p.y);
+      if (p.hollow) el("circle", {cx, cy, r: 4, fill: "var(--surface)", stroke: s.color, "stroke-width": 2}, svg);
+      else el("circle", {cx, cy, r: 4, fill: s.color, stroke: "var(--surface)", "stroke-width": 2}, svg);
+      bindTip(el("circle", {cx, cy, r: 11, class: "hit"}, svg), s.name, [[xLabel, p.x], ...p.rows]);
+    }
+  }
+}
+
+function legend(container, items) {
+  container.innerHTML = items.map(([name, color]) => `<span><span class="key" style="background:${color}"></span>${esc(name)}</span>`).join("");
+}
+
+function groupBy(xs, keyFn) {
+  const m = new Map();
+  for (const x of xs) { const k = keyFn(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); }
+  return m;
+}
+const valsOf = (cs, metric) => cs.map(c => c[metric]).filter(v => v != null && isFinite(v));
+
+// ---------- sections
+function renderHeader() {
+  $("title").textContent = `QCEC profile: ${meta.sweep.name}`;
+  const g = meta.git || {}, h = meta.host || {};
+  $("meta").innerHTML = [
+    `<b>mqt.qcec</b> ${esc(meta.versions["mqt.qcec"])}`, `<b>mqt.core</b> ${esc(meta.versions["mqt.core"])}`,
+    `<b>started</b> ${esc(meta.started)}`, `<b>host</b> ${esc(h.cpu || h.hostname || "")}`,
+    g.commit ? `<b>commit</b> ${esc(g.commit.slice(0, 8))}${g.dirty ? " (dirty)" : ""} on ${esc(g.branch)}` : "",
+  ].filter(Boolean).join(" · ");
+  const rows = [["Sweep file", meta.sweep_file], ["Started", meta.started], ["Finished", meta.finished || "(incomplete)"],
+    ["mqt.qcec / mqt.core", `${meta.versions["mqt.qcec"]} / ${meta.versions["mqt.core"]}`],
+    ["CPU", `${h.cpu} (${h.logical_cpus} logical)`], ["Memory", h.memory_gb ? h.memory_gb + " GB" : "–"],
+    ["Platform", h.platform], ["Python", h.python], ["Concurrent checks", meta.jobs],
+    ["QCEC timeout / hard kill", `${meta.sweep.timeout} s / ${meta.sweep.hard_timeout} s`],
+    ["Repeats", meta.sweep.repeats], ["Warm-up before timing", meta.sweep.warmup ? "yes" : "no"],
+    ["Git", g.commit ? `${g.commit} (${g.branch}${g.dirty ? ", dirty" : ""})` : "–"]];
+  $("run-table").innerHTML = rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("");
+  $("sweep-json").textContent = JSON.stringify(meta.sweep, null, 2);
+}
+
+function renderTiles(cs, metric) {
+  const fmt = fmtFor(metric);
+  const count = o => cs.filter(c => c.outcome === o).length;
+  const wrong = count("incorrect") + count("error");
+  const decisive = count("correct"), skipped = count("skipped"), ran = cs.length - skipped;
+  const total = valsOf(cs, "wall_s").reduce((a, b) => a + b, 0);
+  const tiles = [
+    ["Checks run", ran.toLocaleString(), `${strategies.length} strategies · ${uniq(cs.map(c => c.dataset)).length} datasets` + (skipped ? ` · ${skipped} skipped` : "")],
+    ["Correct (decisive)", ran ? (100 * decisive / ran).toFixed(1) + "%" : "–", `${decisive.toLocaleString()} checks`],
+    ["Wrong or error", `<span class="status ${wrong ? "st-incorrect" : "st-correct"}">${wrong}</span>`, wrong ? "see Flagged checks" : "none"],
+    ["Timeout or inconclusive", (count("timeout") + count("inconclusive")).toLocaleString(), `${count("probable")} probable-only`],
+    ["Median " + METRICS[metric].label.toLowerCase(), fmt(median(valsOf(cs, metric))), "p90 " + fmt(quantile(valsOf(cs, metric), 0.9))],
+    ["Total verify time", fmtTime(total), "sum of wall times, repeats collapsed"],
+  ];
+  $("tiles").innerHTML = tiles.map(([l, v, n]) => `<div class="tile"><div class="label">${esc(l)}</div><div class="value">${v}</div><div class="note">${esc(n)}</div></div>`).join("");
+}
+
+function renderStrategyTable(cs, metric) {
+  const fmt = fmtFor(metric);
+  const head = `<tr><th>Strategy</th><th>Options</th><th class="num">Checks</th>${COLUMNS.map(o => `<th class="num">${OUTCOME_LABEL[o]}</th>`).join("")}<th class="num">Median</th><th class="num">p90</th><th class="num">Max</th><th class="num">CPU/wall</th></tr>`;
+  const rows = strategies.map(s => {
+    const r = cs.filter(c => c.strategy === s);
+    if (!r.length) return "";
+    const v = valsOf(r, metric);
+    const cpu = valsOf(r, "cpu_s").reduce((a, b) => a + b, 0), wall = valsOf(r, "wall_s").reduce((a, b) => a + b, 0);
+    const opts = Object.entries(meta.sweep.strategies[s]).map(([k, x]) => `${k}=${x}`).join(", ") || "QCEC defaults";
+    return `<tr><td><span class="key" style="background:${sColor(s)}"></span>${esc(s)}</td><td style="white-space:normal;color:var(--ink-2);max-width:280px">${esc(opts)}</td><td class="num">${r.length}</td>` +
+      COLUMNS.map(o => { const n = r.filter(c => c.outcome === o).length; return `<td class="num">${n ? `<span class="status st-${o}">${n}</span>` : `<span style="color:var(--muted)">0</span>`}</td>`; }).join("") +
+      `<td class="num">${fmt(median(v))}</td><td class="num">${fmt(quantile(v, .9))}</td><td class="num">${fmt(v.length ? Math.max(...v) : null)}</td><td class="num">${wall ? (cpu / wall).toFixed(2) + "×" : "–"}</td></tr>`;
+  }).join("");
+  $("strategy-table").innerHTML = head + rows;
+}
+
+function renderScaling(cs, metric, xKey, facetKey, containerId, legendId, xLabel, facetLabel) {
+  const box = $(containerId); box.innerHTML = "";
+  const fmt = fmtFor(metric), log = METRICS[metric].log;
+  const xs = uniq(cs.map(c => c[xKey]));
+  const present = strategies.filter(s => cs.some(c => c.strategy === s));
+  legend($(legendId), present.length > 1 ? present.map(s => [s, sColor(s)]) : []);
+  if (cs.some(c => c.outcome === "timeout")) $(legendId).insertAdjacentHTML("beforeend",
+    `<span><svg width="14" height="12" style="margin-right:6px"><circle cx="7" cy="6" r="4" fill="var(--surface)" stroke="var(--ink-2)" stroke-width="2"/></svg>Hollow: median includes timeouts (a lower bound). Lines stop where a strategy was skipped.</span>`);
+  if (xs.length < 2) { box.innerHTML = `<div class="empty">The sweep has only one ${xLabel.toLowerCase()} value. Add more in the sweep's [generator] table to see scaling.</div>`; return; }
+  const facets = groupBy(cs, c => c[facetKey]);
+  const agg = [];
+  for (const [fv, fc] of facets) for (const s of present) for (const xv of xs) {
+    const grp = fc.filter(c => c.strategy === s && c[xKey] === xv), v = valsOf(grp, metric);
+    const to = grp.filter(c => c.outcome === "timeout").length, sk = grp.filter(c => c.outcome === "skipped").length;
+    if (v.length) agg.push({fv, s, xv, med: median(v), p90: quantile(v, .9), n: v.length, to, sk});
+  }
+  const dom = domain(agg.map(a => a.med), log);
+  if (!dom) { box.innerHTML = `<div class="empty">No data for this metric.</div>`; return; }
+  for (const fv of uniq([...facets.keys()])) {
+    lineChart(box, {xs, log, fmt, xLabel, dom, title: `${facetLabel}: ${fv}`,
+      series: present.map(s => ({name: s, color: sColor(s), points: agg.filter(a => a.fv === fv && a.s === s).map(a => ({x: a.xv, y: a.med, hollow: a.to > 0,
+        rows: [["median", fmt(a.med)], ["p90", fmt(a.p90)], ["checks", a.n], ["timeouts", a.to], [facetLabel, fv]]}))}))});
+  }
+}
+
+function lerpColor(t) {
+  // Interpolate between --seq-lo and --seq-hi resolved colors.
+  const cs = getComputedStyle(document.documentElement);
+  const hex = v => { v = v.trim().replace("#", ""); return [0, 2, 4].map(i => parseInt(v.slice(i, i + 2), 16)); };
+  const a = hex(cs.getPropertyValue("--seq-lo")), b = hex(cs.getPropertyValue("--seq-hi"));
+  const c = a.map((x, i) => Math.round(x + (b[i] - x) * t));
+  return {fill: `rgb(${c.join(",")})`, lum: (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255};
+}
+
+function renderHeat(cs, metric) {
+  const box = $("chart-heat"); box.innerHTML = "";
+  const fmt = fmtFor(metric), log = METRICS[metric].log;
+  const qs = uniq(cs.map(c => c.qubits)).reverse(), gs = uniq(cs.map(c => c.gates));
+  if (qs.length < 2 && gs.length < 2) { box.innerHTML = `<div class="empty">The sweep has a single size. Add more qubits or gates values to fill the heatmap.</div>`; return; }
+  const cells = [];
+  for (const s of strategies) for (const q of qs) for (const g of gs) {
+    const v = valsOf(cs.filter(c => c.strategy === s && c.qubits === q && c.gates === g), metric);
+    if (v.length) cells.push({s, q, g, med: median(v), n: v.length, bad: cs.filter(c => c.strategy === s && c.qubits === q && c.gates === g && ["incorrect","error","timeout"].includes(c.outcome)).length});
+  }
+  const dom = domain(cells.map(c => c.med), log);
+  if (!dom) return;
+  const tf = v => log ? (Math.log10(Math.max(v, dom[0])) - Math.log10(dom[0])) / (Math.log10(dom[1]) - Math.log10(dom[0]) || 1) : (v - dom[0]) / (dom[1] - dom[0] || 1);
+  for (const s of strategies) {
+    const sc = cells.filter(c => c.s === s);
+    if (!sc.length) continue;
+    const wrap = document.createElement("div"); box.appendChild(wrap);
+    const t = document.createElement("div"); t.className = "chart-title"; t.innerHTML = `<span class="key" style="background:${sColor(s)}"></span>${esc(s)}`; wrap.appendChild(t);
+    const W = Math.max(280, wrap.clientWidth || 300), m = {l: 46, r: 6, t: 8, b: 34};
+    const cw = (W - m.l - m.r) / gs.length, ch = Math.min(34, Math.max(20, cw * 0.6)), H = m.t + m.b + ch * qs.length;
+    const svg = el("svg", {width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${s} heatmap`}, wrap);
+    qs.forEach((q, i) => text(svg, m.l - 6, m.t + i * ch + ch / 2 + 4, q, {"text-anchor": "end"}));
+    gs.forEach((g, j) => text(svg, m.l + j * cw + cw / 2, H - m.b + 15, g, {"text-anchor": "middle"}));
+    text(svg, (m.l + W) / 2, H - 4, "base gates", {"text-anchor": "middle"});
+    text(svg, 4, m.t + 10, "qubits", {});
+    for (const c of sc) {
+      const i = qs.indexOf(c.q), j = gs.indexOf(c.g), col = lerpColor(tf(c.med));
+      const x = m.l + j * cw + 1, y = m.t + i * ch + 1;
+      const r = el("rect", {x, y, width: cw - 2, height: ch - 2, rx: 3, fill: col.fill}, svg);
+      if (cw > 54) text(svg, x + (cw - 2) / 2, y + (ch - 2) / 2 + 4, fmt(c.med) + (c.bad ? " !" : ""), {"text-anchor": "middle", style: `fill:${col.lum > 0.55 ? "#0b0b0b" : "#ffffff"}`});
+      bindTip(r, s, [["qubits", c.q], ["base gates", c.g], ["median", fmt(c.med)], ["checks", c.n], ["wrong / error / timeout", c.bad]]);
+    }
+  }
+}
+
+function renderRel(cs, metric) {
+  const box = $("chart-rel"); box.innerHTML = "";
+  const fmt = fmtFor(metric), log = METRICS[metric].log;
+  const rels = [["equivalent", "Equivalent", "var(--s1)"], ["non_equivalent", "Non-equivalent", "var(--s2)"]].filter(([r]) => cs.some(c => c.expected === r));
+  legend($("legend-rel"), rels.map(([, n, c]) => [n, c]));
+  const present = strategies.filter(s => cs.some(c => c.strategy === s));
+  const stats = [];
+  for (const s of present) for (const [r, name, color] of rels) {
+    const v = valsOf(cs.filter(c => c.strategy === s && c.expected === r), metric);
+    if (v.length) stats.push({s, r, name, color, med: median(v), p10: quantile(v, .1), p90: quantile(v, .9), n: v.length});
+  }
+  const dom = domain(stats.flatMap(x => [x.p10, x.p90]), log);
+  if (!dom) { box.innerHTML = `<div class="empty">No data.</div>`; return; }
+  const W = Math.max(300, box.clientWidth), row = 22 * rels.length + 14, m = {l: 130, r: 20, t: 6, b: 28}, H = m.t + m.b + row * present.length;
+  const svg = el("svg", {width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "equivalent vs non-equivalent"}, box);
+  // horizontal value axis: reuse scaleY with swapped orientation
+  const xs = (() => { const f = scaleY(dom[0], dom[1], m.l, W - m.r, log); return v => m.l + (W - m.r) - f(v); })();
+  for (const tv of ticks(dom[0], dom[1], log)) { el("line", {x1: xs(tv), x2: xs(tv), y1: m.t, y2: H - m.b, class: "grid"}, svg); text(svg, xs(tv), H - m.b + 16, fmtTick(fmt)(tv), {"text-anchor": "middle"}); }
+  present.forEach((s, i) => {
+    const y0 = m.t + i * row;
+    text(svg, m.l - 10, y0 + row / 2 + 4, s, {"text-anchor": "end", style: "fill:var(--ink-2)"});
+    rels.forEach(([r], k) => {
+      const st = stats.find(x => x.s === s && x.r === r); if (!st) return;
+      const y = y0 + 7 + 11 + k * 22;
+      el("line", {x1: xs(st.p10), x2: xs(st.p90), y1: y, y2: y, stroke: st.color, "stroke-width": 2, "stroke-linecap": "round", opacity: 0.55}, svg);
+      el("circle", {cx: xs(st.med), cy: y, r: 5, fill: st.color, stroke: "var(--surface)", "stroke-width": 2}, svg);
+      bindTip(el("rect", {x: xs(st.p10) - 8, y: y - 10, width: Math.max(16, xs(st.p90) - xs(st.p10) + 16), height: 20, class: "hit"}, svg),
+        `${s}: ${st.name}`, [["median", fmt(st.med)], ["p10", fmt(st.p10)], ["p90", fmt(st.p90)], ["checks", st.n]]);
+    });
+  });
+}
+
+function renderDecided(cs) {
+  const box = $("chart-dec"); box.innerHTML = "";
+  const present = strategies.filter(s => cs.some(c => c.strategy === s));
+  const used = CHECKERS.filter(k => cs.some(c => (c.decided_by || "none") === k));
+  legend($("legend-dec"), used.map(k => [CHECKER_LABEL[k], CHECKER_COLOR[k]]));
+  const W = Math.max(300, box.clientWidth), m = {l: 130, r: 50}, rowH = 30, H = rowH * present.length;
+  const svg = el("svg", {width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "deciding checker share"}, box);
+  present.forEach((s, i) => {
+    const r = cs.filter(c => c.strategy === s), y = i * rowH + 6, bw = W - m.l - m.r;
+    text(svg, m.l - 10, y + 13, s, {"text-anchor": "end", style: "fill:var(--ink-2)"});
+    let x = m.l;
+    for (const k of used) {
+      const n = r.filter(c => (c.decided_by || "none") === k).length; if (!n) continue;
+      const w = bw * n / r.length;
+      const seg = el("rect", {x: x + 1, y, width: Math.max(1, w - 2), height: 18, rx: 4, fill: CHECKER_COLOR[k]}, svg);
+      bindTip(seg, `${s}: ${CHECKER_LABEL[k]}`, [["checks", n], ["share", (100 * n / r.length).toFixed(1) + "%"]]);
+      x += w;
+    }
+    text(svg, W - m.r + 8, y + 13, r.length, {});
+  });
+}
+
+function renderTransforms(cs, metric) {
+  const fmt = fmtFor(metric);
+  const present = strategies.filter(s => cs.some(c => c.strategy === s));
+  const ts = uniq(cs.map(c => c.transform || "–"));
+  const cell = {};
+  for (const s of present) {
+    const meds = ts.map(t => { const v = valsOf(cs.filter(c => c.strategy === s && (c.transform || "–") === t), metric); return v.length ? median(v) : null; });
+    const finite = meds.filter(v => v != null), mx = Math.max(...finite), mn = Math.min(...finite);
+    ts.forEach((t, i) => { cell[s + "|" + t] = {v: meds[i], rel: meds[i] == null || mx === mn ? 0 : (meds[i] - mn) / (mx - mn)}; });
+  }
+  $("transform-table").innerHTML = `<tr><th>Transform</th><th class="num">Checks</th>${present.map(s => `<th class="num"><span class="key" style="background:${sColor(s)}"></span>${esc(s)}</th>`).join("")}</tr>` +
+    ts.map(t => `<tr><td>${esc(t.replace(/_/g, " "))}</td><td class="num">${cs.filter(c => (c.transform || "–") === t && c.strategy === present[0]).length}</td>` +
+      present.map(s => { const c = cell[s + "|" + t]; return `<td class="num" style="background:color-mix(in srgb, var(--s1) ${Math.round(c.rel * 22)}%, transparent)">${fmt(c.v)}</td>`; }).join("") + `</tr>`).join("");
+}
+
+function fileLinks(c) { return c.files ? `<a href="${esc(c.files.a)}">A</a> · <a href="${esc(c.files.b)}">B</a>` : ""; }
+
+function renderFlagged(cs, metric) {
+  const fmt = fmtFor(metric);
+  const f = cs.filter(c => ["incorrect", "error", "timeout", "inconclusive"].includes(c.outcome))
+    .sort((a, b) => SEVERITY.indexOf(b.outcome) - SEVERITY.indexOf(a.outcome));
+  if (!f.length) { $("flagged-table").innerHTML = `<tr><td class="empty"><span class="status st-correct">No flagged checks. Every verdict was decisive and matched its label${cs.some(c => c.outcome === "probable") ? " (some simulation-only verdicts were probable rather than proven)" : ""}.</span></td></tr>`; return; }
+  $("flagged-table").innerHTML = `<tr><th>Outcome</th><th>Strategy</th><th>Case</th><th class="num">Qubits</th><th class="num">Gates</th><th>Expected</th><th>QCEC result</th><th class="num">${esc(METRICS[metric].label)}</th><th>Detail</th><th>Files</th></tr>` +
+    f.slice(0, 200).map(c => `<tr><td><span class="status st-${c.outcome}">${OUTCOME_LABEL[c.outcome]}</span></td><td>${esc(c.strategy)}</td><td>${esc(c.dataset)}/${esc(c.case_id)}</td><td class="num">${c.qubits}</td><td class="num">${c.gates}</td><td>${esc(c.expected)}</td><td>${esc(c.equivalence || c.status)}</td><td class="num">${fmt(c[metric])}</td><td style="white-space:normal">${esc(c.error || c.transform || "")}</td><td>${fileLinks(c)}</td></tr>`).join("");
+}
+
+function renderSlow(cs, metric) {
+  const fmt = fmtFor(metric);
+  const s = cs.filter(c => c[metric] != null).sort((a, b) => b[metric] - a[metric]).slice(0, 25);
+  $("slow-table").innerHTML = `<tr><th>Strategy</th><th>Case</th><th class="num">Qubits</th><th class="num">Gates A/B</th><th>Gate set</th><th>Transform</th><th>Expected</th><th>Outcome</th><th>Decided by</th><th class="num">${esc(METRICS[metric].label)}</th><th class="num">Wall</th><th>Files</th></tr>` +
+    s.map(c => `<tr><td><span class="key" style="background:${sColor(c.strategy)}"></span>${esc(c.strategy)}</td><td>${esc(c.dataset)}/${esc(c.case_id)}</td><td class="num">${c.qubits}</td><td class="num">${c.a_gates ?? "–"}/${c.b_gates ?? "–"}</td><td>${esc(c.gate_set)}</td><td>${esc((c.transform || "").replace(/_/g, " "))}</td><td>${esc(c.expected)}</td><td><span class="status st-${c.outcome}">${OUTCOME_LABEL[c.outcome]}</span></td><td>${esc(CHECKER_LABEL[c.decided_by] || c.decided_by || "–")}</td><td class="num">${fmt(c[metric])}</td><td class="num">${fmtTime(c.wall_s)}</td><td>${fileLinks(c)}</td></tr>`).join("");
+}
+
+function render() {
+  hideTip();
+  const metric = $("f-metric").value, cs = filtered();
+  renderTiles(cs, metric);
+  renderStrategyTable(cs, metric);
+  renderScaling(cs, metric, "qubits", "gates", "chart-qubits", "legend-qubits", "Qubits", "Base gates");
+  renderScaling(cs, metric, "gates", "qubits", "chart-gates", "legend-gates", "Base gates", "Qubits");
+  renderHeat(cs, metric);
+  renderRel(cs, metric);
+  renderDecided(cs);
+  renderTransforms(cs, metric);
+  renderFlagged(cs, metric);
+  renderSlow(cs, metric);
+}
+
+renderHeader();
+render();
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+# Quick sanity sweep (~1-2 minutes; simulation-only dominates at 16 qubits).
+name = "smoke"
+repeats = 1
+timeout = 20.0        # QCEC cooperative timeout per check (seconds)
+# hard_timeout = 40.0 # worker is killed after this (default: 1.5 * timeout + 10)
+warmup = true         # run a tiny untimed check in each worker before the timed one
+
+# Scalars apply to every dataset; lists form a cartesian product.
+# Keys map 1:1 to qcanopy_generate options (see docs/generator_quickstart.md).
+[generator]
+qubits = [3, 8, 16]
+gates = [50, 400]
+pairs = 8
+gate_set = "mixed"
+angle_mode = "mixed"
+prefix_fraction = 0.5
+equivalent_fraction = 0.5
+seed = 759
+
+# Each table is one QCEC configuration; keys are mqt.qcec.verify keyword
+# arguments (ConfigurationOptions). An empty table uses QCEC defaults.
+[strategies.default]
+
+[strategies.alternating]
+run_alternating_checker = true
+run_construction_checker = false
+run_simulation_checker = false
+run_zx_checker = false
+
+[strategies.simulation]
+run_alternating_checker = false
+run_construction_checker = false
+run_simulation_checker = true
+run_zx_checker = false
+
+[strategies.zx]
+run_alternating_checker = false
+run_construction_checker = false
+run_simulation_checker = false
+run_zx_checker = true

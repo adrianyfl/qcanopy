@@ -1,0 +1,60 @@
+# Gate-count scaling from 1k to 100k base gates (half-decade steps) at three qubit counts.
+#
+# Resource notes:
+#   * qcanopy_generate keeps a whole batch in memory (~0.8 KB per gate): 8 pairs
+#     at 100k gates is ~0.7 GB while generating. pair_gate_budget only starts
+#     reducing pairs above 500k gates; it is kept as a guard if you extend the ladder.
+#   * Disk: about 4 MB of QASM per 100k-gate circuit; this sweep writes ~250 MB.
+#   * Every check re-parses its QASM (load_s, reported separately, ~0.7 s per
+#     check at 100k gates); it is not part of the verify timing.
+# Expect about 3-4 hours, mostly default/alternating at 32 qubits (~11-24 s per
+# check already at 1k gates). repeats = 1 cuts that to about a third.
+name = "large-gates"
+repeats = 3
+timeout = 300.0               # default for strategies that don't set their own
+warmup = true
+pair_gate_budget = 4_000_000  # pairs per dataset = min(pairs, budget // gates), at least 2
+skip_after_timeouts = 2       # after 2 timeouts at N gates, skip the rest of that series (N and up)
+
+[generator]
+qubits = [8, 16, 32]
+gates = [1000, 3000, 10000, 30000, 100000]
+pairs = 8
+gate_set = "mixed"
+angle_mode = "mixed"
+prefix_fraction = 0.5
+equivalent_fraction = 0.5
+seed = 759
+verify = "none"               # dense verification only applies at <= 5 qubits anyway
+
+[strategies.default]
+
+[strategies.alternating]
+run_alternating_checker = true
+run_construction_checker = false
+run_simulation_checker = false
+run_zx_checker = false
+
+# The checkers below blow up early on random non-Clifford circuits (at 16
+# qubits, ZX takes ~1.4 s at 10k gates and times out at 100k; simulation-only
+# already times out at 10k), so they get a short timeout and rely on auto-skip.
+[strategies.construction]
+run_alternating_checker = false
+run_construction_checker = true
+run_simulation_checker = false
+run_zx_checker = false
+timeout = 60.0
+
+[strategies.zx]
+run_alternating_checker = false
+run_construction_checker = false
+run_simulation_checker = false
+run_zx_checker = true
+timeout = 60.0
+
+[strategies.simulation]
+run_alternating_checker = false
+run_construction_checker = false
+run_simulation_checker = true
+run_zx_checker = false
+timeout = 60.0
