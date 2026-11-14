@@ -96,6 +96,86 @@ namespace {
         CHECK(std::abs(overlap - 1.0 / d) < 0.01);
     }
 
+    // Single-qubit reduced density matrix of qubit k: returns {rho00, rho01}; rho11 = 1 - rho00.
+    struct Marginal { double p0; cplx coh; };
+    Marginal marginal(const StateVector& s, int k) {
+        const std::size_t bit = std::size_t{1} << k;
+        Marginal m{0.0, {0.0, 0.0}};
+        for (std::size_t i = 0; i < s.amplitudes.size(); ++i) {
+            if (i & bit) continue;
+            m.p0 += std::norm(s.amplitudes[i]);
+            m.coh += s.amplitudes[i] * std::conj(s.amplitudes[i | bit]);
+        }
+        return m;
+    }
+
+    // Tr(rho_k^2): 1 iff qubit k is unentangled with the rest.
+    double purity(const StateVector& s, int k) {
+        const Marginal m = marginal(s, k);
+        const double p1 = 1.0 - m.p0;
+        return m.p0 * m.p0 + p1 * p1 + 2.0 * std::norm(m.coh);
+    }
+
+    void test_product_shape_and_determinism() {
+        for (int n = 0; n <= 8; ++n) {
+            const StateVector s = random_product_state(n, 300 + n);
+            CHECK(s.num_qbits == n);
+            CHECK(s.amplitudes.size() == (std::size_t{1} << n));
+            CHECK(std::abs(norm_sq(s) - 1.0) < 1e-12);
+        }
+        CHECK(same_state(random_product_state(4, 5), random_product_state(4, 5)));
+        CHECK(!same_state(random_product_state(4, 5), random_product_state(4, 6), 1e-6));
+
+        const auto short_batch = random_product_states(4, 3, 99);
+        const auto long_batch = random_product_states(4, 10, 99);
+        for (std::size_t k = 0; k < short_batch.size(); ++k) CHECK(same_state(short_batch[k], long_batch[k]));
+        CHECK(!same_state(long_batch[0], long_batch[1], 1e-6));
+
+        // Same seed, different stimulus kind -> unrelated batches.
+        CHECK(!same_state(random_product_states(1, 1, 99)[0], haar_random_states(1, 1, 99)[0], 1e-6));
+
+        bool threw = false;
+        try { (void)random_product_state(kMaxQubits + 1, 0); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
+    }
+
+    void test_product_is_unentangled() {
+        const int n = 4;
+        for (uint64_t seed = 0; seed < 20; ++seed) {
+            const StateVector s = random_product_state(n, seed);
+            for (int k = 0; k < n; ++k) CHECK(std::abs(purity(s, k) - 1.0) < 1e-12);
+        }
+        // Contrast: a Haar state is (almost surely) entangled, so the purity check has teeth.
+        const StateVector h = haar_random_state(n, 0);
+        for (int k = 0; k < n; ++k) CHECK(purity(h, k) < 0.99);
+    }
+
+    // Each qubit is uniform on the Bloch sphere, so p = |<0|v_k>|^2 ~ Uniform(0, 1):
+    //   E[p] = 1/2, E[p^2] = 1/3,  and distinct qubits are independent: E[p_j p_k] = 1/4.
+    void test_product_moments() {
+        const int n = 3;
+        const std::size_t samples = 20000;
+        const auto states = random_product_states(n, samples, 2026);
+
+        double m1[n] = {}, m2[n] = {}, cross01 = 0.0, cross12 = 0.0;
+        for (const auto& s : states) {
+            double p[n];
+            for (int k = 0; k < n; ++k) {
+                p[k] = marginal(s, k).p0;
+                m1[k] += p[k];
+                m2[k] += p[k] * p[k];
+            }
+            cross01 += p[0] * p[1];
+            cross12 += p[1] * p[2];
+        }
+        for (int k = 0; k < n; ++k) {
+            CHECK(std::abs(m1[k] / samples - 0.5) < 0.01);
+            CHECK(std::abs(m2[k] / samples - 1.0 / 3.0) < 0.01);
+        }
+        CHECK(std::abs(cross01 / samples - 0.25) < 0.01);
+        CHECK(std::abs(cross12 / samples - 0.25) < 0.01);
+    }
+
     void test_execute_from_initial_state() {
         Simulator sim;
         Circuit c(3);
@@ -134,6 +214,9 @@ int main() {
     test_determinism();
     test_invalid_qubit_count();
     test_haar_moments();
+    test_product_shape_and_determinism();
+    test_product_is_unentangled();
+    test_product_moments();
     test_execute_from_initial_state();
     if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
     std::printf("all stimulus tests passed\n");
