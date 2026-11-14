@@ -11,8 +11,28 @@ namespace qcanopy {
         for (const Gate& g : c.gates) append(g);
     }
 
+    // Canonical order: sweep wires 0..n-1 and, on each wire, emit gates while they are ready
+    // (the first remaining gate on every wire they touch). The order depends only on the graph,
+    // not on node ids, so two DAGs with the same structure produce the same gate list.
     Circuit CircuitDAG::to_circuit() const {
-        return {}; // TODO
+        Circuit c(n);
+        c.global_phase = global_phase;
+        std::array<uint32_t, kMaxQubits> cur = head;   // first unemitted node on each wire
+
+        bool progress = true;
+        while (progress) {
+            progress = false;
+            for (int q = 0; q < n; ++q) {
+                while (cur[q] != kNone) {
+                    const Node& nd = nodes[cur[q]];
+                    if (nd.gate.nq == 2 && cur[nd.gate.q[0]] != cur[nd.gate.q[1]]) break;
+                    c.add(nd.gate);
+                    for (int i = 0; i < nd.gate.nq; ++i) cur[nd.gate.q[i]] = nd.next[i];
+                    progress = true;
+                }
+            }
+        }
+        return c;
     }
 
     // find which slot of g holds qubit q. q must be one of g's qubits.

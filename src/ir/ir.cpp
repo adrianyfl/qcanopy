@@ -81,7 +81,7 @@ namespace qcanopy {
         return kInfo[static_cast<size_t>(k)];
     }
 
-    Gate make_gate(GateKind k, uint8_t q0, std::array<double, 3> params = {0, 0, 0}) {
+    Gate make_gate(GateKind k, uint8_t q0, std::array<double, 3> params) {
         Gate g = {k, 1, {q0, 0}, params};
         
         const double th = params[0];
