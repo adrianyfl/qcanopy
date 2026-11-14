@@ -32,9 +32,7 @@ self-contained HTML report.
 
    The runner finds `qcanopy_generate` and `sim_bench` under any `build*/`
    directory (newest wins); pass `--generator` / `--bench` to choose explicitly.
-   If the build fails in `sim_bench_adapter.hpp`, or the runner stops in
-   `read_manifest()`, see [Adapting to the repository](#adapting-to-the-repository).
-
+   
 ## Run
 
 ```sh
