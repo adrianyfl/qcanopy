@@ -5,3 +5,4 @@ build-*/
 generated/
 __pycache__/
 *.sh
+slurm/
