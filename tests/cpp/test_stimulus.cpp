@@ -176,6 +176,86 @@ namespace {
         CHECK(std::abs(cross12 / samples - 0.25) < 0.01);
     }
 
+    // Index of the single amplitude equal to 1, or SIZE_MAX if s is not exactly a basis state.
+    std::size_t basis_index(const StateVector& s) {
+        std::size_t found = SIZE_MAX;
+        for (std::size_t i = 0; i < s.amplitudes.size(); ++i) {
+            if (s.amplitudes[i] == cplx{1.0, 0.0}) {
+                if (found != SIZE_MAX) return SIZE_MAX;
+                found = i;
+            } else if (s.amplitudes[i] != cplx{0.0, 0.0}) {
+                return SIZE_MAX;
+            }
+        }
+        return found;
+    }
+
+    void test_basis_state() {
+        CHECK(basis_index(basis_state(0, 0)) == 0);
+        CHECK(basis_index(basis_state(3, 0)) == 0);
+        CHECK(basis_index(basis_state(3, 5)) == 5);
+        CHECK(basis_index(basis_state(3, 7)) == 7);
+
+        // Qubit ordering: |index> with only bit k set is X on qubit k applied to |0...0>.
+        Simulator sim;
+        Circuit flip(3);
+        flip.add(make_gate(GateKind::X, 2));
+        CHECK(same_state(sim.execute(flip), basis_state(3, 4)));
+
+        bool threw = false;
+        try { (void)basis_state(3, 8); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
+        threw = false;
+        try { (void)basis_state(-1, 0); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
+    }
+
+    void test_all_basis_states() {
+        for (int n = 0; n <= 4; ++n) {
+            const auto states = all_basis_states(n);
+            CHECK(states.size() == (std::size_t{1} << n));
+            for (std::size_t i = 0; i < states.size(); ++i) {
+                CHECK(states[i].num_qbits == n);
+                CHECK(basis_index(states[i]) == i);
+            }
+        }
+    }
+
+    void test_random_basis_states() {
+        CHECK(same_state(random_basis_state(6, 3), random_basis_state(6, 3)));
+        CHECK(basis_index(random_basis_state(0, 3)) == 0);
+
+        const auto short_batch = random_basis_states(5, 3, 99);
+        const auto long_batch = random_basis_states(5, 10, 99);
+        for (std::size_t k = 0; k < short_batch.size(); ++k) CHECK(same_state(short_batch[k], long_batch[k]));
+
+        // Uniform over [0, 2^n): 8000 draws into 8 bins, expect 1000 each (sd ~30, tol ~5 sd).
+        const int n = 3;
+        const std::size_t samples = 8000;
+        std::size_t hist[8] = {};
+        for (const auto& s : random_basis_states(n, samples, 2026)) {
+            const std::size_t i = basis_index(s);
+            CHECK(i < 8);
+            if (i < 8) ++hist[i];
+        }
+        for (std::size_t b = 0; b < 8; ++b) CHECK(hist[b] > 850 && hist[b] < 1150);
+    }
+
+    // Documents the caveat in stimulus.hpp: Z and I agree on every basis input up to a
+    // per-input phase, and differ only in the RELATIVE phase between inputs.
+    void test_basis_needs_common_phase() {
+        Simulator sim;
+        Circuit id(1), z(1);
+        z.add(make_gate(GateKind::Z, 0));
+        const auto inputs = all_basis_states(1);
+        cplx phase[2];
+        for (std::size_t i = 0; i < inputs.size(); ++i) {
+            phase[i] = inner(sim.execute(id, inputs[i]), sim.execute(z, inputs[i]));
+            CHECK(std::abs(std::abs(phase[i]) - 1.0) < 1e-12);   // per-input check passes...
+        }
+        CHECK(std::abs(phase[0] - phase[1]) > 1.0);             // ...but the phases disagree.
+    }
+
     void test_execute_from_initial_state() {
         Simulator sim;
         Circuit c(3);
@@ -217,6 +297,10 @@ int main() {
     test_product_shape_and_determinism();
     test_product_is_unentangled();
     test_product_moments();
+    test_basis_state();
+    test_all_basis_states();
+    test_random_basis_states();
+    test_basis_needs_common_phase();
     test_execute_from_initial_state();
     if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
     std::printf("all stimulus tests passed\n");

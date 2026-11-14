@@ -11,6 +11,7 @@ namespace qcanopy {
         // Seed domains for batch derivation, so different stimulus kinds never share sub-seeds.
         constexpr uint64_t kDomainHaar = 1;
         constexpr uint64_t kDomainProduct = 2;
+        constexpr uint64_t kDomainBasis = 3;
 
         // SplitMix64 finalizer.
         uint64_t mix(uint64_t z) {
@@ -104,6 +105,39 @@ namespace qcanopy {
 
     std::vector<StateVector> random_product_states(int n, std::size_t count, uint64_t seed) {
         return batch(n, count, seed, kDomainProduct, random_product_state);
+    }
+
+    StateVector basis_state(int n, uint64_t index) {
+        check_qubits(n, "basis_state");
+        // n <= kMaxQubits = 32, so 2^n fits in uint64_t.
+        if (index >= (uint64_t{1} << n))
+            throw std::invalid_argument("basis_state: index out of range for qubit count");
+
+        StateVector state(n);   // |0...0>
+        state.amplitudes[0] = {0.0, 0.0};
+        state.amplitudes[static_cast<std::size_t>(index)] = {1.0, 0.0};
+        return state;
+    }
+
+    StateVector random_basis_state(int n, uint64_t seed) {
+        check_qubits(n, "random_basis_state");
+        Rng rng{mix(seed)};
+        // The top n bits of a uniform 64-bit word are uniform on [0, 2^n): no modulo bias.
+        const uint64_t index = n == 0 ? 0 : rng.next() >> (64 - n);
+        return basis_state(n, index);
+    }
+
+    std::vector<StateVector> random_basis_states(int n, std::size_t count, uint64_t seed) {
+        return batch(n, count, seed, kDomainBasis, random_basis_state);
+    }
+
+    std::vector<StateVector> all_basis_states(int n) {
+        check_qubits(n, "all_basis_states");
+        const uint64_t dim = uint64_t{1} << n;
+        std::vector<StateVector> states;
+        states.reserve(static_cast<std::size_t>(dim));
+        for (uint64_t i = 0; i < dim; ++i) states.push_back(basis_state(n, i));
+        return states;
     }
 
 } // namespace qcanopy

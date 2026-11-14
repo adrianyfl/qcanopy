@@ -38,4 +38,29 @@ namespace qcanopy {
     // Batches use a separate seed domain, so the same seed yields unrelated Haar and product batches.
     std::vector<StateVector> random_product_states(int n, std::size_t count, uint64_t seed);
 
+    // ---- Computational basis states ----
+    //
+    // Caveat for checkers: basis inputs only pin down U up to a phase PER COLUMN. Comparing each
+    // output pair independently up to phase (|<A i|B i>| = 1) cannot tell Z from I. A checker
+    // must require ONE common phase e^{i phi} with A|i> = e^{i phi} B|i> across all inputs; with
+    // that constraint, passing all_basis_states(n) proves equivalence.
+
+    // The basis state |index> on n qubits (qubit k = bit k of index, as in ir.hpp).
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits] or index >= 2^n.
+    StateVector basis_state(int n, uint64_t index);
+
+    // A uniformly random basis state |i>, i in [0, 2^n).
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits].
+    StateVector random_basis_state(int n, uint64_t seed);
+
+    // `count` independent random basis states (sampled WITH replacement, so repeats are possible);
+    // same batch semantics as haar_random_states, with its own seed domain.
+    std::vector<StateVector> random_basis_states(int n, std::size_t count, uint64_t seed);
+
+    // Every basis state |0>, |1>, ..., |2^n - 1>, in index order.
+    // Memory is 2^n states x 2^n amplitudes x 16 bytes (n = 10 -> 16 MiB, n = 12 -> 256 MiB),
+    // so this is only practical for small n.
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits].
+    std::vector<StateVector> all_basis_states(int n);
+
 } // namespace qcanopy
