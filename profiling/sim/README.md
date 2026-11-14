@@ -129,19 +129,6 @@ Presets:
 | `strategies` | flat vs dag vs normalized at 12 and 18 qubits across gate pools and angle modes |
 | `large_gates` | 1k to 100k base gates (half-decade steps) at 8, 12 and 16 qubits |
 
-## Memory
-
-A state vector takes 16 · 2^n bytes: 16 MB at 20 qubits, 256 MB at 24, 4 GB at
-28, 64 GB at 32. A check holds two states (A and B) plus a temporary, so the
-runner estimates 3 · 16 · 2^n bytes and records datasets above
-`memory_budget_mb` as `skipped_memory` without generating them. Raise the
-budget deliberately; the bench has no out-of-core fallback and an allocation
-failure is reported as an `error`.
-
-Time scales the same way: one gate costs roughly 2^n × (2–5 ns) on one core,
-so 400 gates at 24 qubits is about 30 s per execution, and a check runs each
-circuit `repeats` times plus once per extra probe.
-
 ## Changing parameters
 
 Every value comes from the sweep file. To change one, either copy a preset and
@@ -187,66 +174,6 @@ A check executes each circuit `repeats` times plus once per extra probe, so at
 30 qubits with `repeats = 1`, `probes = 2` and 100 gates, one pair is about
 4 × 5 min. Keep `pairs` small and `gates` modest there.
 
-## Running on a Slurm cluster
-
-The scripts in `profiling/sim/slurm/` run from the repository root.
-
-1. **Environment.** Edit `slurm/env.sh` for your site: load a C++17 compiler,
-   CMake ≥ 3.18 and Python ≥ 3.11 (modules or conda). Every job sources it.
-2. **Build on a compute node**, so the binaries match the nodes that run them:
-
-   ```sh
-   sbatch profiling/sim/slurm/build.sbatch          # builds into build-slurm/
-   ```
-
-   For `-march=native`, add `CMAKE_ARGS="-DCMAKE_CXX_FLAGS=-march=native"`, and
-   only if build and profiling jobs land on the same CPU type (pin both with
-   `-p`/`--constraint`).
-3. **One sweep in one job:**
-
-   ```sh
-   sbatch profiling/sim/slurm/profile.sbatch                              # scaling sweep
-   SWEEP=profiling/sim/sweeps/strategies.toml sbatch profiling/sim/slurm/profile.sbatch
-   sbatch --mem=200G --time=24:00:00 -p bigmem profiling/sim/slurm/profile.sbatch \
-       --set 'generator.qubits=[28,30]' --set generator.pairs=2 --set repeats=1
-   ```
-
-   The run goes to `generated/sim-profile/<sweep>-slurm/` (set `RUN_DIR` to
-   choose). Five minutes before the time limit Slurm signals the job; the runner
-   stops its worker and exits cleanly. **Resubmit the same command to resume**:
-   completed checks are kept. Set `RUN_DIR` to start a separate run.
-4. **Split a sweep over several nodes** with an array job and an automatic merge:
-
-   ```sh
-   profiling/sim/slurm/submit_array.sh profiling/sim/sweeps/scaling.toml 4
-   SBATCH_ARGS="--mem=200G --time=12:00:00 -p bigmem" \
-     profiling/sim/slurm/submit_array.sh profiling/sim/sweeps/scaling.toml 4 \
-     --set 'generator.qubits=[24,26,28,30]'
-   ```
-
-   Each task runs `sim_profile.py run --shard K/N` into `<base>/shard-K/`, and a
-   dependent job merges them into `<base>/merged/report.html`. Shards are whole
-   series (all gate counts of one qubit count / gate set), dealt round-robin by
-   qubit count, so auto-skip keeps working and the largest sizes spread across
-   tasks. To finish shards that hit the time limit, resubmit only those IDs
-   (the script prints the command), then rerun `merge.sbatch`. `merge` also
-   works by hand: `sim_profile.py merge OUT_DIR SHARD_DIR...`.
-
-Resources:
-
-- `--mem` sets the largest qubit count: the runner reads the allocation from
-  `SLURM_MEM_PER_NODE` (or `SLURM_MEM_PER_CPU` × CPUs) and uses 85% of it as
-  `memory_budget_mb`; use the table above. Sizes that don't fit are recorded as
-  `skipped_memory`, not killed by the OOM handler.
-- `--cpus-per-task=2` is enough: the simulator is single-threaded. Keep the
-  default `--jobs 1`.
-- `--exclusive` (set in the scripts) keeps other jobs off the node's memory
-  bandwidth, which is what the simulator is limited by. Drop it if the queue
-  wait is long and accept noisier timings.
-- Compare timings only within one CPU model. `run.json` and the report record
-  the node, CPU and Slurm job, and `merge` warns if shards ran on different CPU
-  models or different sim.cpp versions.
-
 ## What is measured
 
 Every check runs `sim_bench` in a fresh process, so one slow or crashing check
@@ -279,24 +206,6 @@ Outcomes:
 | `skipped` | Not run, because auto-skip had already stopped this series |
 | `skipped_memory` | Not run, because the state would exceed `memory_budget_mb` |
 
-### How correctness is checked
-
-A simulator only computes `U|psi>` for one input, so the pair check uses probes.
-For each probe the same random layer of single-qubit U gates is prepended to A
-and B, which preserves equivalence. The verdict is *equivalent* when every
-probe gives fidelity ≥ 1 − `tol` **and** the same overlap phase, which matches
-the generator's definition (equal up to one global phase). Probe 0 is the plain
-`|0...0>` input and is the one that is timed.
-
-The label check alone only tests that the simulator is self-consistent. A bug
-that relabels every two-qubit gate the same way (for example swapping the
-`idx01`/`idx10` roles in `apply_2q_gate`) keeps equivalent pairs equivalent and
-passes it. The reference simulation catches that: it applies each gate by a
-plain loop over all basis indices, using the IR's documented convention (local
-index `(bit(q[1]) << 1) | bit(q[0])`, row-major matrices, qubit 0 least
-significant), without sim.cpp's index-insertion arithmetic. Keep
-`reference_max_qubits` above zero in at least one sweep you run regularly.
-
 ### Kernel scan
 
 For each qubit count, the bench times circuits made of one repeated gate and
@@ -322,12 +231,3 @@ the 2^q stride.
   are good for checking correctness on every gate kind and for scaling curves,
   not a model of compiled application circuits.
 - `results.jsonl` is plain JSON lines: `pd.read_json(path, lines=True)`.
-
-## Adapting to the repository
-
-`sim_bench_adapter.hpp` is the only file that calls QCanopy APIs beyond
-`sim.hpp`: `testgen::read_ir(std::istream&)`, `testgen::normalized_copy(const
-Circuit&)` and `CircuitDAG(const Circuit&)`. If a signature differs, change it
-there. On the Python side, `read_manifest()` in `sim_profile.py` finds each
-case's label and A/B paths by key name in `manifest.jsonl`; if the generator's
-field names change and it cannot find them, it stops and prints the record.
