@@ -14,5 +14,3 @@ gate_set = "mixed"
 pairs = 4
 prefix_group_size = 4
 seed = 759
-
-[strategies.flat]

@@ -2,8 +2,8 @@
 
 Profiles the state-vector simulator (`src/sim/sim.cpp`, `qcanopy::Simulator`) on
 labeled circuit pairs from `qcanopy_generate`. One command generates datasets
-across a size grid, runs every pair through the simulator with one or more
-execution strategies, checks each result against the generator's proven label
+across a size grid, runs every pair through the simulator, checks each result
+against the generator's proven label
 and an independent reference simulation, and writes a terminal summary plus a
 self-contained HTML report.
 
@@ -23,70 +23,19 @@ self-contained HTML report.
    .\.tools\cmake\data\bin\cmake.exe --build build-llvm
    ```
 
-3. **Check it.** Python 3.11+ is the only other requirement (standard library
+2. **Check it.** Python 3.11+ is the only other requirement (standard library
    only, no `pip install`):
 
    ```sh
    python profiling/sim/sim_profile.py run      # smoke sweep, under a minute
    ```
 
-   The runner finds `qcanopy_generate` and `sim_bench` under any `build*/`
-   directory (newest wins); pass `--generator` / `--bench` to choose explicitly.
-   
-## Run
-
-```sh
-python profiling/sim/sim_profile.py run                                   # sweeps/smoke.toml, under a minute
-python profiling/sim/sim_profile.py run --sweep profiling/sim/sweeps/scaling.toml
-python profiling/sim/sim_profile.py run --sweep profiling/sim/sweeps/strategies.toml
-```
-
-The runner finds `qcanopy_generate` and `sim_bench` under any `build*/`
-directory (newest wins); pass `--generator` / `--bench` to choose explicitly.
-
-Each run creates `generated/sim-profile/<timestamp>-<sweep name>/`:
-
-```text
-run.json         sweep, host, git commit, sim.cpp hash, timings
-results.jsonl    one record per check (written as it goes)
-kernels.jsonl    one kernel scan per qubit count
-datasets/<id>/   the qcanopy_generate IR output for each grid point
-report.html      the report; open it in a browser
-```
-
-Other commands:
-
-```sh
-sim_profile.py summary [RUN_DIR]     # print the terminal tables again (default: latest run)
-sim_profile.py report  [RUN_DIR]     # re-render report.html (e.g. after editing the template)
-sim_profile.py run --resume RUN_DIR  # finish an interrupted run; completed checks are kept, errors retried
-sim_profile.py merge OUT_DIR SHARD_DIR...   # combine shard runs into one report
-```
-
-`run` options: `--set KEY=VALUE` (override any sweep value, see below),
-`--jobs N` (concurrent checks, default 1), `--timeout S`, `--repeats N`,
-`--out DIR` or `--run-dir DIR`, `--shard K/N`, `--generator PATH`, `--bench PATH`.
-Ctrl+C or SIGTERM stops the running worker and leaves the run resumable.
-
-`run.json` records a short SHA-256 of `src/sim/sim.cpp` next to the commit, so
-two reports from before and after an optimization can be told apart even with
-uncommitted edits.
-
 ## Sweep files
 
 A sweep is a TOML file. Scalar `[generator]` values apply to every dataset, and
 list values form a cartesian product. Keys map one-to-one to `qcanopy_generate`
-options (the profiler always uses `--format ir`). Each `[strategies.<name>]`
-table chooses how circuits reach the simulator:
-
-| `strategy` | What is timed |
-| --- | --- |
-| `flat` | `Simulator::execute(const Circuit&)` on the raw circuit |
-| `dag` | `Simulator::execute(const CircuitDAG&)`, including its `to_circuit()` flattening. Building the DAG is `prep_s` |
-| `normalized` | `execute` on `normalized_copy(circuit)`. Normalization is `prep_s`; fewer gates may be simulated |
-
-A table named `flat`, `dag` or `normalized` needs no `strategy` key. A strategy
-may override `timeout`, `repeats`, `probes` and `reference_max_qubits`.
+options (the profiler always uses `--format ir`). Each circuit is timed with
+`Simulator::execute(const Circuit&)` as generated.
 
 ```toml
 name = "my-sweep"
@@ -96,7 +45,7 @@ probes = 3                   # |0...0> plus 2 random product-state inputs per pa
 tol = 1e-8                   # fidelity tolerance for the equivalence verdict
 reference_max_qubits = 12    # independent reference simulation up to this size
 reference_tol = 1e-8         # max |amplitude difference| allowed against the reference
-memory_budget_mb = 8192      # default: half of RAM, or 85% of the Slurm allocation
+memory_budget_mb = 8192      # default: half of RAM
 kernel_scan = true           # or a list of qubit counts, or false
 pair_gate_budget = 400_000   # optional: pairs = min(pairs, budget // gates), at least 2
 skip_after_timeouts = 2      # optional: after 2 timeouts at N gates, skip that series from N up
@@ -108,23 +57,19 @@ gates = [100, 400]
 gate_set = ["clifford-t", "mixed"]
 pairs = 8
 seed = 759
-
-[strategies.flat]
-[strategies.normalized]
 ```
 
 Datasets run in ascending gate count, then qubit count. `skip_after_timeouts`
-works as in the QCEC profiler: once a strategy reaches the threshold at N gates
-for a given qubit count, gate set and other settings, its remaining checks at
-N gates and above are recorded as `skipped`.
+works as in the QCEC profiler: once the threshold is reached at N gates for a
+given qubit count, gate set and other settings, the remaining checks at N gates
+and above are recorded as `skipped`.
 
 Presets:
 
 | Sweep | Purpose |
 | --- | --- |
-| `smoke` | Every strategy at 3 to 14 qubits, 50 and 200 gates |
-| `scaling` | 4 to 24 qubits × 100 and 400 gates, flat only, with kernel scans |
-| `strategies` | flat vs dag vs normalized at 12 and 18 qubits across gate pools and angle modes |
+| `smoke` | 3 to 14 qubits, 50 and 200 gates |
+| `scaling` | 4 to 24 qubits × 100 and 400 gates, with kernel scans |
 | `large_gates` | 1k to 100k base gates (half-decade steps) at 8, 12 and 16 qubits |
 
 ## Changing parameters
@@ -140,9 +85,8 @@ python profiling/sim/sim_profile.py run --sweep profiling/sim/sweeps/scaling.tom
     --set timeout=7200 --set memory_budget_mb=120000 --set name=big
 ```
 
-Dotted keys reach into tables (`strategies.flat.timeout=3600`); a new
-`--set strategies.dag={}` adds a strategy. `--timeout` and `--repeats` are
-shortcuts for the top-level keys. Overrides are recorded in `run.json` and a
+Dotted keys reach into tables (`generator.gate_set=clifford-t`). `--timeout`
+and `--repeats` are shortcuts for the top-level keys. Overrides are recorded in `run.json` and a
 resumed run keeps them.
 
 | To increase | Key | Limit and cost |
@@ -154,8 +98,8 @@ resumed run keeps them.
 | Timing precision | `repeats` | Each circuit is executed `repeats` times; at large n use 1 |
 | Equivalence coverage | `probes` | One extra execution of A and B per probe beyond the first |
 | Reference check size | `reference_max_qubits` | Cost ~4·gates·2^n per circuit; also capped at 4e8 operations by the bench |
-| Time per check | `timeout`, or `strategies.<name>.timeout` | Hard kill; combine with `skip_after_timeouts` |
-| Memory allowed | `memory_budget_mb` | Default: half of RAM, or 85% of the Slurm allocation inside a job |
+| Time per check | `timeout` | Hard kill; combine with `skip_after_timeouts` |
+| Memory allowed | `memory_budget_mb` | Default: half of RAM |
 | Kernel scans | `kernel_scan` | `true` (every qubit count), a list such as `[16, 20, 24]`, or `false` |
 
 Memory and time per check at larger sizes (one core, ~3 ns per amplitude per gate):
@@ -182,11 +126,10 @@ is per check.
 | --- | --- |
 | `sim_s` | per circuit: mean of the A and B medians over `repeats`, input `\|0...0>` |
 | `sim_a_s`, `sim_b_s` | every timed repetition |
-| `ns_per_gate`, `ns_per_gate_amp` | `sim_s` divided by simulated gates, and by gates × 2^n |
+| `ns_per_gate`, `ns_per_gate_amp` | `sim_s` divided by gates, and by gates × 2^n |
 | `gb_s` | effective bandwidth: 32 bytes (one complex read and write) per amplitude per gate |
-| `prep_s` | DAG build or normalization time (null for `flat`) |
 | `load_s` | `read_ir` of both files |
-| `simulated_gates_a/b` | gates actually applied (differs from `gates_a/b` after normalization) |
+| `gates_a/b` | gates in each circuit |
 | `peak_rss_mb` | peak RSS of the worker: `VmHWM` on Linux (reset after warm-up), `PeakWorkingSetSize` on Windows, `ru_maxrss` on macOS. On Windows and macOS it includes the warm-up and cannot be reset |
 | `min_fidelity`, `phase_spread` | minimum `\|<A psi\|B psi>\|` over probes, and the spread of its phase |
 | `ref_err_a/b` | max amplitude difference against the reference simulation (null above the size cap) |
@@ -197,7 +140,7 @@ Outcomes:
 | Outcome | Meaning |
 | --- | --- |
 | `correct` | The probe verdict matches the label, and both states match the reference when it ran |
-| `incorrect` | An equivalent pair gave different states, a state's norm drifted by more than 1e-6, or a state differs from the reference. This is a simulator, DAG or normalization bug |
+| `incorrect` | An equivalent pair gave different states, a state's norm drifted by more than 1e-6, or a state differs from the reference. This is a simulator bug |
 | `undetected` | A non-equivalent pair whose probe states all matched. Expected only with `probes = 1` (the generator's appended X can leave `\|0...0>` unchanged up to phase) |
 | `timeout` | The worker was killed at `timeout` |
 | `error` | An exception, allocation failure or crash; the message is in `error`. Retried by `--resume` |
@@ -223,8 +166,6 @@ the 2^q stride.
 - `ns_per_gate_amp` should be roughly flat in gates at fixed n. Steps as n
   grows mark the state leaving L2, L3 and then fitting only in DRAM (about
   16, 19–22 qubits on typical desktop parts).
-- `normalized` pays `prep_s` once per circuit to save simulated gates; for
-  repeated execution of one circuit, compare its `sim_s` with `flat`.
 - The generator's pairs are near-identical circuits with shared prefixes. They
   are good for checking correctness on every gate kind and for scaling curves,
   not a model of compiled application circuits.
