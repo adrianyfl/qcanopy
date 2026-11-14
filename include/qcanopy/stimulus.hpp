@@ -4,6 +4,14 @@
 // A checker drives both circuits with a set of stimulus states and compares the outputs; this
 // header produces those states.
 //
+// Single-state generators return a StateVector; batch generators return a Stimulus (sim.hpp),
+// tagged by kind, which can be concatenated and handed to the simulator in one call:
+//
+//     Stimulus stim = haar_random_states(n, 8, seed);
+//     stim.append(random_product_states(n, 8, seed))
+//         .append(all_basis_states(n));
+//     std::vector<StateVector> out = Simulator{}.execute(circuit, stim);   // out[i] <-> stim.states[i]
+//
 // Determinism: every generator here is a pure function of (n, seed). Sampling uses an in-house
 // SplitMix64 + Box-Muller pipeline rather than <random> distributions, whose output differs
 // between standard libraries (MSVC vs libstdc++), so stimuli are reproducible across platforms.
@@ -26,7 +34,7 @@ namespace qcanopy {
 
     // `count` independent Haar-random states. State k depends only on (n, seed, k), so
     // increasing `count` extends the batch without changing existing entries.
-    std::vector<StateVector> haar_random_states(int n, std::size_t count, uint64_t seed);
+    Stimulus haar_random_states(int n, std::size_t count, uint64_t seed);
 
     // A random product state |v_{n-1}> (x) ... (x) |v_1> (x) |v_0>, where each single-qubit
     // state |v_k> is independently Haar-random (uniform on the Bloch sphere). Unentangled, so it
@@ -36,7 +44,7 @@ namespace qcanopy {
 
     // `count` independent random product states; same batch semantics as haar_random_states.
     // Batches use a separate seed domain, so the same seed yields unrelated Haar and product batches.
-    std::vector<StateVector> random_product_states(int n, std::size_t count, uint64_t seed);
+    Stimulus random_product_states(int n, std::size_t count, uint64_t seed);
 
     // ---- Computational basis states ----
     //
@@ -55,12 +63,12 @@ namespace qcanopy {
 
     // `count` independent random basis states (sampled WITH replacement, so repeats are possible);
     // same batch semantics as haar_random_states, with its own seed domain.
-    std::vector<StateVector> random_basis_states(int n, std::size_t count, uint64_t seed);
+    Stimulus random_basis_states(int n, std::size_t count, uint64_t seed);
 
     // Every basis state |0>, |1>, ..., |2^n - 1>, in index order.
     // Memory is 2^n states x 2^n amplitudes x 16 bytes (n = 10 -> 16 MiB, n = 12 -> 256 MiB),
     // so this is only practical for small n.
     // Throws std::invalid_argument if n is outside [0, kMaxQubits].
-    std::vector<StateVector> all_basis_states(int n);
+    Stimulus all_basis_states(int n);
 
 } // namespace qcanopy

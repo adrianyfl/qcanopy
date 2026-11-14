@@ -1,6 +1,7 @@
 #include "qcanopy/sim.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace qcanopy {
 
@@ -33,6 +34,26 @@ namespace qcanopy {
         }
     }
 
+    // Appends one stimulus state, enforcing a uniform qubit count.
+    Stimulus& Stimulus::add(StateVector s, StimulusKind kind){
+        if (s.num_qbits != num_qbits) {
+            throw std::invalid_argument("Stimulus::add: state qubit count does not match stimulus");
+        }
+        states.push_back(std::move(s));
+        kinds.push_back(kind);
+        return *this;
+    }
+
+    // Appends another stimulus batch of the same width.
+    Stimulus& Stimulus::append(const Stimulus& other){
+        if (other.num_qbits != num_qbits) {
+            throw std::invalid_argument("Stimulus::append: qubit count mismatch");
+        }
+        states.insert(states.end(), other.states.begin(), other.states.end());
+        kinds.insert(kinds.end(), other.kinds.begin(), other.kinds.end());
+        return *this;
+    }
+
     // Executes a flattened circuit and returns the final state.
     StateVector Simulator::execute(const Circuit& circuit) const{
         // Start from |0...0>
@@ -59,6 +80,22 @@ namespace qcanopy {
         state.apply_global_phase(circuit.global_phase);
         // Return final state vector
         return state;
+    }
+
+    // Executes the circuit on every state of a stimulus batch.
+    std::vector<StateVector> Simulator::execute(const Circuit& circuit, const Stimulus& stimulus) const{
+        if (stimulus.num_qbits != circuit.n) {
+            throw std::invalid_argument("Simulator::execute: stimulus qubit count does not match circuit");
+        }
+
+        // Copy the inputs, then evolve each slot in place. Iterations are fully independent
+        // (each reads and writes only outputs[i]), so this loop is the place to parallelize
+        // later (e.g. OpenMP or std::execution::par) without changing the interface.
+        std::vector<StateVector> outputs = stimulus.states;
+        for (std::size_t i = 0; i < outputs.size(); ++i) {
+            outputs[i] = execute(circuit, std::move(outputs[i]));
+        }
+        return outputs;
     }
 
     // Execute directly from the DAG

@@ -45,13 +45,17 @@ namespace qcanopy {
                 throw std::invalid_argument(std::string(what) + ": qubit count out of range");
         }
 
-        // Fills `count` states from `make(n, sub_seed)`, with sub-seeds drawn from `domain`.
+        // Builds a `count`-state batch from `make(n, sub_seed)`, with sub-seeds drawn from `domain`,
+        // tagging every state with `kind`.
         template <class Make>
-        std::vector<StateVector> batch(int n, std::size_t count, uint64_t seed, uint64_t domain, Make make) {
-            std::vector<StateVector> states;
-            states.reserve(count);
-            for (std::size_t k = 0; k < count; ++k) states.push_back(make(n, derive(seed, domain, k)));
-            return states;
+        Stimulus batch(int n, std::size_t count, uint64_t seed, uint64_t domain, StimulusKind kind,
+                       Make make, const char* what) {
+            check_qubits(n, what);
+            Stimulus stim(n);
+            stim.states.reserve(count);
+            stim.kinds.reserve(count);
+            for (std::size_t k = 0; k < count; ++k) stim.add(make(n, derive(seed, domain, k)), kind);
+            return stim;
         }
     } // namespace
 
@@ -73,8 +77,8 @@ namespace qcanopy {
         return state;
     }
 
-    std::vector<StateVector> haar_random_states(int n, std::size_t count, uint64_t seed) {
-        return batch(n, count, seed, kDomainHaar, haar_random_state);
+    Stimulus haar_random_states(int n, std::size_t count, uint64_t seed) {
+        return batch(n, count, seed, kDomainHaar, StimulusKind::Haar, haar_random_state, "haar_random_states");
     }
 
     StateVector random_product_state(int n, uint64_t seed) {
@@ -103,8 +107,9 @@ namespace qcanopy {
         return state;
     }
 
-    std::vector<StateVector> random_product_states(int n, std::size_t count, uint64_t seed) {
-        return batch(n, count, seed, kDomainProduct, random_product_state);
+    Stimulus random_product_states(int n, std::size_t count, uint64_t seed) {
+        return batch(n, count, seed, kDomainProduct, StimulusKind::Product, random_product_state,
+                     "random_product_states");
     }
 
     StateVector basis_state(int n, uint64_t index) {
@@ -127,17 +132,19 @@ namespace qcanopy {
         return basis_state(n, index);
     }
 
-    std::vector<StateVector> random_basis_states(int n, std::size_t count, uint64_t seed) {
-        return batch(n, count, seed, kDomainBasis, random_basis_state);
+    Stimulus random_basis_states(int n, std::size_t count, uint64_t seed) {
+        return batch(n, count, seed, kDomainBasis, StimulusKind::Basis, random_basis_state,
+                     "random_basis_states");
     }
 
-    std::vector<StateVector> all_basis_states(int n) {
+    Stimulus all_basis_states(int n) {
         check_qubits(n, "all_basis_states");
         const uint64_t dim = uint64_t{1} << n;
-        std::vector<StateVector> states;
-        states.reserve(static_cast<std::size_t>(dim));
-        for (uint64_t i = 0; i < dim; ++i) states.push_back(basis_state(n, i));
-        return states;
+        Stimulus stim(n);
+        stim.states.reserve(static_cast<std::size_t>(dim));
+        stim.kinds.reserve(static_cast<std::size_t>(dim));
+        for (uint64_t i = 0; i < dim; ++i) stim.add(basis_state(n, i), StimulusKind::Basis);
+        return stim;
     }
 
 } // namespace qcanopy

@@ -46,8 +46,8 @@ namespace {
         CHECK(!same_state(haar_random_state(5, 7), haar_random_state(5, 8), 1e-6));
 
         // Batch entries depend only on (n, seed, k): a longer batch extends a shorter one.
-        const auto short_batch = haar_random_states(4, 3, 99);
-        const auto long_batch = haar_random_states(4, 10, 99);
+        const auto short_batch = haar_random_states(4, 3, 99).states;
+        const auto long_batch = haar_random_states(4, 10, 99).states;
         CHECK(short_batch.size() == 3 && long_batch.size() == 10);
         for (std::size_t k = 0; k < short_batch.size(); ++k) CHECK(same_state(short_batch[k], long_batch[k]));
         // Batch entries are distinct from one another.
@@ -69,7 +69,7 @@ namespace {
         const int n = 2;
         const std::size_t d = std::size_t{1} << n;
         const std::size_t samples = 20000;
-        const auto states = haar_random_states(n, samples, 2026);
+        const auto states = haar_random_states(n, samples, 2026).states;
 
         for (std::size_t i = 0; i < d; ++i) {
             double m2 = 0.0, m4 = 0.0;
@@ -126,13 +126,13 @@ namespace {
         CHECK(same_state(random_product_state(4, 5), random_product_state(4, 5)));
         CHECK(!same_state(random_product_state(4, 5), random_product_state(4, 6), 1e-6));
 
-        const auto short_batch = random_product_states(4, 3, 99);
-        const auto long_batch = random_product_states(4, 10, 99);
+        const auto short_batch = random_product_states(4, 3, 99).states;
+        const auto long_batch = random_product_states(4, 10, 99).states;
         for (std::size_t k = 0; k < short_batch.size(); ++k) CHECK(same_state(short_batch[k], long_batch[k]));
         CHECK(!same_state(long_batch[0], long_batch[1], 1e-6));
 
         // Same seed, different stimulus kind -> unrelated batches.
-        CHECK(!same_state(random_product_states(1, 1, 99)[0], haar_random_states(1, 1, 99)[0], 1e-6));
+        CHECK(!same_state(random_product_states(1, 1, 99).states[0], haar_random_states(1, 1, 99).states[0], 1e-6));
 
         bool threw = false;
         try { (void)random_product_state(kMaxQubits + 1, 0); } catch (const std::invalid_argument&) { threw = true; }
@@ -155,7 +155,7 @@ namespace {
     void test_product_moments() {
         const int n = 3;
         const std::size_t samples = 20000;
-        const auto states = random_product_states(n, samples, 2026);
+        const auto states = random_product_states(n, samples, 2026).states;
 
         double m1[n] = {}, m2[n] = {}, cross01 = 0.0, cross12 = 0.0;
         for (const auto& s : states) {
@@ -212,7 +212,7 @@ namespace {
 
     void test_all_basis_states() {
         for (int n = 0; n <= 4; ++n) {
-            const auto states = all_basis_states(n);
+            const auto states = all_basis_states(n).states;
             CHECK(states.size() == (std::size_t{1} << n));
             for (std::size_t i = 0; i < states.size(); ++i) {
                 CHECK(states[i].num_qbits == n);
@@ -225,15 +225,16 @@ namespace {
         CHECK(same_state(random_basis_state(6, 3), random_basis_state(6, 3)));
         CHECK(basis_index(random_basis_state(0, 3)) == 0);
 
-        const auto short_batch = random_basis_states(5, 3, 99);
-        const auto long_batch = random_basis_states(5, 10, 99);
+        const auto short_batch = random_basis_states(5, 3, 99).states;
+        const auto long_batch = random_basis_states(5, 10, 99).states;
         for (std::size_t k = 0; k < short_batch.size(); ++k) CHECK(same_state(short_batch[k], long_batch[k]));
 
         // Uniform over [0, 2^n): 8000 draws into 8 bins, expect 1000 each (sd ~30, tol ~5 sd).
         const int n = 3;
         const std::size_t samples = 8000;
         std::size_t hist[8] = {};
-        for (const auto& s : random_basis_states(n, samples, 2026)) {
+        const Stimulus draws = random_basis_states(n, samples, 2026);
+        for (const auto& s : draws.states) {
             const std::size_t i = basis_index(s);
             CHECK(i < 8);
             if (i < 8) ++hist[i];
@@ -247,13 +248,71 @@ namespace {
         Simulator sim;
         Circuit id(1), z(1);
         z.add(make_gate(GateKind::Z, 0));
-        const auto inputs = all_basis_states(1);
+        const auto inputs = all_basis_states(1).states;
         cplx phase[2];
         for (std::size_t i = 0; i < inputs.size(); ++i) {
             phase[i] = inner(sim.execute(id, inputs[i]), sim.execute(z, inputs[i]));
             CHECK(std::abs(std::abs(phase[i]) - 1.0) < 1e-12);   // per-input check passes...
         }
         CHECK(std::abs(phase[0] - phase[1]) > 1.0);             // ...but the phases disagree.
+    }
+
+    void test_stimulus_composition() {
+        const int n = 2;
+        Stimulus stim = haar_random_states(n, 3, 7);
+        stim.append(random_product_states(n, 2, 7))
+            .append(all_basis_states(n))
+            .add(haar_random_state(n, 123));   // default kind: Custom
+
+        CHECK(stim.num_qbits == n);
+        CHECK(stim.size() == 3 + 2 + 4 + 1);
+        CHECK(stim.kinds.size() == stim.states.size());
+        using K = StimulusKind;
+        const K expected[] = {K::Haar, K::Haar, K::Haar, K::Product, K::Product,
+                              K::Basis, K::Basis, K::Basis, K::Basis, K::Custom};
+        for (std::size_t i = 0; i < stim.size(); ++i) CHECK(stim.kinds[i] == expected[i]);
+
+        // Appending preserves the source states and their order.
+        const Stimulus haar = haar_random_states(n, 3, 7);
+        for (std::size_t i = 0; i < haar.size(); ++i) CHECK(same_state(stim.states[i], haar.states[i]));
+        CHECK(basis_index(stim.states[5 + 2]) == 2);
+
+        // Width mismatches are rejected, and the stimulus is left unchanged.
+        bool threw = false;
+        try { stim.add(haar_random_state(n + 1, 0)); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
+        threw = false;
+        try { stim.append(all_basis_states(n + 1)); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
+        CHECK(stim.size() == 10 && stim.kinds.size() == 10);
+    }
+
+    void test_execute_stimulus_batch() {
+        Simulator sim;
+        Circuit c(3);
+        c.add(make_gate(GateKind::H, 1))
+         .add(make_gate(GateKind::CZ, 1, 2))
+         .add(make_gate(GateKind::U, 0, {0.3, -1.1, 2.4}))
+         .add(make_gate(GateKind::CX, 2, 0));
+        c.global_phase = -0.6;
+
+        Stimulus stim = haar_random_states(3, 4, 1);
+        stim.append(random_product_states(3, 4, 1)).append(all_basis_states(3));
+
+        // Batch execution matches executing each state individually, index for index.
+        const auto outputs = sim.execute(c, stim);
+        CHECK(outputs.size() == stim.size());
+        for (std::size_t i = 0; i < stim.size(); ++i)
+            CHECK(same_state(outputs[i], sim.execute(c, stim.states[i]), 0.0));
+
+        // The input stimulus is not modified.
+        CHECK(same_state(stim.states[0], haar_random_states(3, 1, 1).states[0]));
+
+        CHECK(sim.execute(c, Stimulus(3)).empty());
+
+        bool threw = false;
+        try { (void)sim.execute(c, all_basis_states(2)); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
     }
 
     void test_execute_from_initial_state() {
@@ -301,6 +360,8 @@ int main() {
     test_all_basis_states();
     test_random_basis_states();
     test_basis_needs_common_phase();
+    test_stimulus_composition();
+    test_execute_stimulus_batch();
     test_execute_from_initial_state();
     if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
     std::printf("all stimulus tests passed\n");

@@ -5,8 +5,5 @@
 #include <complex>
 
 namespace qcanopy {
-    struct Stimulus {
-
-    };
 
 }
