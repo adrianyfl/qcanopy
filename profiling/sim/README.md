@@ -7,30 +7,9 @@ execution strategies, checks each result against the generator's proven label
 and an independent reference simulation, and writes a terminal summary plus a
 self-contained HTML report.
 
-It follows the layout of `profiling/qcec` (same sweep format, run directory,
-`run`/`summary`/`report`/`--resume` commands and outcome table), with the
-checker replaced by the simulator and the metrics chosen for a state-vector
-code: time per gate per amplitude, effective memory bandwidth, and a per-kernel
-scan.
-
 ## Setup
 
-1. **Put the files in the repository.** Unzip so that this folder is
-   `profiling/sim/` next to `profiling/qcec/`. The simulator (`src/sim/`,
-   `include/qcanopy/sim.hpp`) and the generator (`src/generator/`) must be on the
-   same branch, so merge the `sim` branch into the branch that has the generator
-   (or the other way round) first.
-2. **Register the bench with CMake.** In the top-level `CMakeLists.txt`, after
-   the existing `add_subdirectory` lines for the IR, DAG and generator:
-
-   ```cmake
-   add_subdirectory(profiling/sim)
-   ```
-
-   `profiling/sim/CMakeLists.txt` links `qcanopy::sim` if that target exists and
-   otherwise compiles `src/sim/sim.cpp` into the bench. If sim.cpp lives
-   elsewhere, configure with `-DQCANOPY_SIM_SOURCE=path/to/sim.cpp`.
-3. **Build in Release** (timings from a Debug build are meaningless):
+1. **Build in Release** (timings from a Debug build are meaningless):
 
    ```sh
    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -44,7 +23,7 @@ scan.
    .\.tools\cmake\data\bin\cmake.exe --build build-llvm
    ```
 
-4. **Check it.** Python 3.11+ is the only other requirement (standard library
+3. **Check it.** Python 3.11+ is the only other requirement (standard library
    only, no `pip install`):
 
    ```sh
@@ -55,7 +34,6 @@ scan.
    directory (newest wins); pass `--generator` / `--bench` to choose explicitly.
    If the build fails in `sim_bench_adapter.hpp`, or the runner stops in
    `read_manifest()`, see [Adapting to the repository](#adapting-to-the-repository).
-5. Add `generated/` to `.gitignore` if it is not there already.
 
 ## Run
 
