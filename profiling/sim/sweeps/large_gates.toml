@@ -1,0 +1,24 @@
+# 1k to 100k base gates (half-decade steps) at 8, 12 and 16 qubits.
+# At fixed n the simulator is linear in gates, so ns/gate-amp should stay flat;
+# DAG build and normalization (prep) are where superlinear growth would show.
+name = "large_gates"
+repeats = 1
+timeout = 600.0
+probes = 2
+pair_gate_budget = 400_000
+skip_after_timeouts = 2
+reference_max_qubits = 8
+kernel_scan = false
+
+[generator]
+qubits = [8, 12, 16]
+gates = [1000, 3162, 10000, 31623, 100000]
+gate_set = "mixed"
+pairs = 8
+prefix_group_size = 4
+verify = "none"
+seed = 759
+
+[strategies.flat]
+[strategies.dag]
+[strategies.normalized]

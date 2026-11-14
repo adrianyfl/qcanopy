@@ -1,0 +1,17 @@
+# Quick sanity check of every strategy at small and medium sizes (~1 min).
+name = "smoke"
+repeats = 3
+timeout = 60.0
+probes = 3              # |0...0> plus 2 random product states per pair
+
+[generator]
+qubits = [3, 6, 10, 14]
+gates = [50, 200]
+gate_set = "mixed"
+pairs = 8
+prefix_group_size = 4
+seed = 759
+
+[strategies.flat]
+[strategies.dag]
+[strategies.normalized]

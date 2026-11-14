@@ -1,0 +1,18 @@
+# Qubits x gates growth of the flat simulator. Time should grow ~2^n per gate
+# and linearly in gates; watch ns/gate-amp for cache and memory-bandwidth cliffs.
+name = "scaling"
+repeats = 3
+timeout = 600.0
+probes = 2
+skip_after_timeouts = 2
+kernel_scan = true
+
+[generator]
+qubits = [4, 8, 12, 14, 16, 18, 20, 22, 24]
+gates = [100, 400]
+gate_set = "mixed"
+pairs = 4
+prefix_group_size = 4
+seed = 759
+
+[strategies.flat]

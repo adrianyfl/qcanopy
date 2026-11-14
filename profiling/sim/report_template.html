@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulator profile</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0; --surface-1: #fcfcfb; --border: #dedcd5; --grid: #ebe9e3;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7973;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b; --neutral: #9a988f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #111110; --surface-1: #1a1a19; --border: #33332f; --grid: #2a2a27;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767; --neutral: #6f6e68;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #111110; --surface-1: #1a1a19; --border: #33332f; --grid: #2a2a27;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #0ca30c; --s7: #9085e9; --s8: #e66767; --neutral: #6f6e68;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 16px; margin: 0 0 4px; font-weight: 600; }
+.meta { color: var(--text-secondary); font-size: 13px; }
+.meta code { font: 12px ui-monospace, Consolas, monospace; }
+section { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; margin-top: 16px; }
+.note { color: var(--text-secondary); font-size: 13px; margin: 0 0 12px; max-width: 72ch; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 16px; }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.tile .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .k { color: var(--text-secondary); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; margin-bottom: 10px; }
+.controls label { display: flex; flex-direction: column; font-size: 12px; color: var(--text-secondary); gap: 3px; }
+select, button { font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+button { cursor: pointer; }
+button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.axis text { fill: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.axis line, .axis path { stroke: var(--border); }
+.gridline { stroke: var(--grid); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-secondary); margin: 6px 0 0; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 16px rgb(0 0 0 / .12);
+  white-space: nowrap; display: none; z-index: 2; }
+.tip b { font-weight: 600; }
+.tip .row { display: flex; align-items: center; gap: 6px; }
+.tip .muted { color: var(--text-muted); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 10px 5px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+td.num, th.num { text-align: right; }
+.scroll { overflow-x: auto; }
+.status { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.status svg { flex: none; }
+details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; margin-top: 10px; }
+.empty { color: var(--text-muted); font-size: 13px; padding: 16px 0; }
+.mono { font: 12px ui-monospace, Consolas, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">Simulator profile</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <h2>Correctness</h2>
+    <p class="note">Each pair runs on |0…0⟩ plus random product-state probes. <b>Correct</b>: the overlap
+      ⟨Aψ|Bψ⟩ agrees with the generator's proven label and, at small sizes, both states match an independent
+      reference simulation amplitude for amplitude. <b>Incorrect</b> means an equivalent pair produced different
+      states, a state left the unit sphere, or the simulator disagreed with the reference — a simulator, DAG or
+      normalization bug. <b>Undetected</b>: a non-equivalent pair whose probe states all matched (a probe
+      limitation, rare with ≥ 2 probes).</p>
+    <div class="scroll"><table id="outcomes"></table></div>
+    <div id="attention"></div>
+  </section>
+
+  <section>
+    <h2>Scaling</h2>
+    <p class="note" id="scaling-note"></p>
+    <div class="controls" id="scaling-controls"></div>
+    <div class="chart" id="scaling-chart"></div>
+    <div class="legend" id="scaling-legend"></div>
+    <details><summary>Table view</summary><div class="scroll"><table id="scaling-table"></table></div></details>
+  </section>
+
+  <section id="kernel-section">
+    <h2>Kernel scan</h2>
+    <p class="note">Cost of one gate by kind and target qubit, from circuits of repeated identical gates
+      (state allocation subtracted). <b>h</b> and <b>cx</b> are dense; <b>z</b> and <b>cz</b> are diagonal and
+      <b>swap</b> a permutation, so a simulator with specialized kernels makes them cheaper. Equal lines mean every
+      gate goes through the generic matrix path. A rise at high targets points to cache or TLB effects from the
+      stride 2<sup>q</sup>.</p>
+    <div class="controls" id="kernel-controls"></div>
+    <div class="chart" id="kernel-chart"></div>
+    <div class="legend" id="kernel-legend"></div>
+    <details><summary>Table view</summary><div class="scroll"><table id="kernel-table"></table></div></details>
+  </section>
+
+  <section>
+    <h2>Run</h2>
+    <div class="scroll"><table id="runinfo"></table></div>
+  </section>
+</main>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+// ---------------------------------------------------------------- helpers
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const SERIES = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"].map((v) => `var(${v})`);
+const median = (xs) => {
+  const v = xs.filter((x) => x != null && isFinite(x)).sort((a, b) => a - b);
+  if (!v.length) return null;
+  const m = v.length >> 1;
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
+const uniq = (xs) => [...new Set(xs)];
+const sortVals = (vs) => vs.slice().sort((a, b) => (typeof a === "number" && typeof b === "number") ? a - b : String(a).localeCompare(String(b)));
+
+function fmtTime(s) {
+  if (s == null) return "–";
+  if (s < 1e-6) return (s * 1e9).toPrecision(3) + " ns";
+  if (s < 1e-3) return (s * 1e6).toPrecision(3) + " µs";
+  if (s < 1) return (s * 1e3).toPrecision(3) + " ms";
+  return s.toPrecision(3) + " s";
+}
+const fmtNum = (v, d = 3) => v == null ? "–" : (Math.abs(v) >= 1e4 ? v.toExponential(2) : Number(v.toPrecision(d)).toLocaleString());
+
+const STATUS = {
+  correct:        {color: "var(--good)",     label: "Correct",       icon: "check"},
+  undetected:     {color: "var(--warning)",  label: "Undetected",    icon: "warn"},
+  incorrect:      {color: "var(--critical)", label: "Incorrect",     icon: "x"},
+  error:          {color: "var(--critical)", label: "Error",         icon: "x"},
+  timeout:        {color: "var(--serious)",  label: "Timeout",       icon: "clock"},
+  skipped:        {color: "var(--neutral)",  label: "Skipped",       icon: "dash"},
+  skipped_memory: {color: "var(--neutral)",  label: "Skipped (memory)", icon: "dash"},
+};
+function icon(kind, color) {
+  const p = {
+    check: '<path d="M3.5 7.5l2.5 2.5 5-6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+    x: '<path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
+    warn: '<path d="M7 3.5v4.2" stroke="#000" stroke-width="1.8" stroke-linecap="round"/><circle cx="7" cy="10.2" r="1" fill="#000"/>',
+    clock: '<path d="M7 4v3.2l2 1.3" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
+    dash: '<path d="M4.5 7h5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>',
+  }[kind];
+  return `<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="7" fill="${color}"/>${p}</svg>`;
+}
+const statusChip = (o) => { const s = STATUS[o] || STATUS.error; return `<span class="status">${icon(s.icon, s.color)}${esc(s.label)}</span>`; };
+
+// ---------------------------------------------------------------- header
+const R = DATA.results, run = DATA.run, sweep = run.sweep;
+document.title = `Simulator profile · ${sweep.name}`;
+$("title").textContent = `Simulator profile · ${sweep.name}`;
+$("meta").innerHTML = `<code>${esc(DATA.dir)}</code> · commit <code>${esc(run.git_commit)}</code>`
+  + ` · sim.cpp <code>${esc(run.sim_cpp_sha256 ?? "n/a")}</code> · ${esc(run.host.cpu)}, ${run.host.logical_cpus} threads`;
+
+const counts = {};
+R.forEach((r) => counts[r.outcome] = (counts[r.outcome] || 0) + 1);
+const tiles = [["Checks", R.length, null]];
+for (const o of ["correct", "incorrect", "undetected", "timeout", "error", "skipped", "skipped_memory"])
+  if (counts[o] || o === "correct" || o === "incorrect") tiles.push([STATUS[o].label, counts[o] || 0, o]);
+$("tiles").innerHTML = tiles.map(([k, v, o]) =>
+  `<div class="tile"><div class="v">${v.toLocaleString()}</div><div class="k">${o ? icon(STATUS[o].icon, STATUS[o].color) : ""}${esc(k)}</div></div>`).join("");
+
+// ---------------------------------------------------------------- outcomes
+const strategies = uniq(R.map((r) => r.strategy));
+const outcomeCols = Object.keys(STATUS).filter((o) => counts[o]);
+$("outcomes").innerHTML = `<tr><th>Strategy</th><th class="num">Checks</th>${outcomeCols.map((o) => `<th class="num">${statusChip(o)}</th>`).join("")}<th class="num">Min fidelity, equivalent pairs</th><th class="num">Max ref. error</th></tr>`
+  + strategies.map((s) => {
+    const rs = R.filter((r) => r.strategy === s);
+    const fid = rs.filter((r) => r.label === "equivalent" && r.min_fidelity != null).map((r) => r.min_fidelity);
+    const ref = rs.flatMap((r) => [r.ref_err_a, r.ref_err_b]).filter((x) => x != null);
+    return `<tr><td>${esc(s)}</td><td class="num">${rs.length}</td>${outcomeCols.map((o) => `<td class="num">${rs.filter((r) => r.outcome === o).length || ""}</td>`).join("")}`
+      + `<td class="num">${fid.length ? Math.min(...fid).toFixed(12) : "–"}</td><td class="num">${ref.length ? Math.max(...ref).toExponential(2) : "–"}</td></tr>`;
+  }).join("");
+const bad = R.filter((r) => ["incorrect", "undetected", "error"].includes(r.outcome));
+if (bad.length) {
+  $("attention").innerHTML = `<details open><summary>Needs attention (${bad.length})</summary><div class="scroll"><table>
+    <tr><th>Outcome</th><th>Strategy</th><th>Dataset</th><th>Case</th><th>Label</th><th>Detail</th></tr>
+    ${bad.slice(0, 200).map((r) => `<tr><td>${statusChip(r.outcome)}</td><td>${esc(r.strategy)}</td><td class="mono">${esc(r.dataset)}</td><td class="mono">${esc(r.case_id)}</td><td>${esc(r.label)}</td><td>${esc(r.reason || r.error)}</td></tr>`).join("")}
+  </table></div></details>`;
+}
+
+// ---------------------------------------------------------------- line chart
+function lineChart(el, legendEl, {series, xLabel, yLabel, xLog, yLog, xFmt, yFmt, tipRows}) {
+  const W = 1000, H = 380, m = {l: 64, r: 104, t: 12, b: 44};
+  const pts = series.flatMap((s) => s.points);
+  legendEl.innerHTML = "";
+  if (!pts.length) { el.innerHTML = '<div class="empty">No data for this selection.</div>'; return; }
+  const tx = (v) => xLog ? Math.log10(v) : v, ty = (v) => yLog ? Math.log10(v) : v;
+  const xs = pts.map((p) => tx(p.x)), ys = pts.filter((p) => p.y > 0 || !yLog).map((p) => ty(p.y));
+  let [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+  if (x0 === x1) { x0 -= 1; x1 += 1; }
+  let [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+  if (yLog) { y0 = Math.floor(y0); y1 = Math.ceil(y1); if (y0 === y1) y1 += 1; }
+  else { y0 = Math.min(0, y0); const span = (y1 - y0) || 1; y1 += span * 0.08; }
+  const sx = (v) => m.l + (tx(v) - x0) / (x1 - x0) * (W - m.l - m.r);
+  const sy = (v) => H - m.b - (ty(v) - y0) / (y1 - y0) * (H - m.t - m.b);
+
+  let g = "";
+  // y grid + ticks
+  const yt = [];
+  if (yLog) for (let e = y0; e <= y1; e++) yt.push(10 ** e);
+  else { const step = niceStep((y1 - y0) / 5); for (let v = Math.ceil(y0 / step) * step; v <= y1 + 1e-12; v += step) yt.push(v); }
+  g += yt.map((v) => `<line class="gridline" x1="${m.l}" x2="${W - m.r}" y1="${sy(v)}" y2="${sy(v)}"/>`
+    + `<g class="axis"><text x="${m.l - 8}" y="${sy(v) + 4}" text-anchor="end">${esc(yFmt(v))}</text></g>`).join("");
+  // x ticks at data values
+  const xv = sortVals(uniq(pts.map((p) => p.x)));
+  const every = Math.ceil(xv.length / 12);
+  g += `<g class="axis"><line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}"/>`
+    + xv.filter((_, i) => i % every === 0).map((v) => `<text x="${sx(v)}" y="${H - m.b + 18}" text-anchor="middle">${esc(xFmt(v))}</text>`).join("")
+    + `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle">${esc(xLabel)}</text>`
+    + `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">${esc(yLabel)}</text></g>`;
+  // lines + markers
+  const labels = [];
+  series.forEach((s) => {
+    const p = s.points.filter((q) => !yLog || q.y > 0).sort((a, b) => a.x - b.x);
+    if (!p.length) return;
+    if (p.length > 1) g += `<path d="${p.map((q, i) => (i ? "L" : "M") + sx(q.x) + " " + sy(q.y)).join("")}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    g += p.map((q) => `<circle cx="${sx(q.x)}" cy="${sy(q.y)}" r="4" fill="${s.color}" stroke="var(--surface-1)" stroke-width="2"/>`).join("");
+    const last = p[p.length - 1];
+    labels.push({y: sy(last.y), x: sx(last.x), name: s.name});
+  });
+  // direct labels at line ends (only for <= 4 series), de-overlapped
+  if (series.length <= 4) {
+    labels.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 14);
+    g += labels.map((l) => `<text x="${l.x + 10}" y="${l.y + 4}" font-size="12" fill="var(--text-secondary)">${esc(l.name)}</text>`).join("");
+  }
+  g += `<line id="xhair" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-muted)" stroke-dasharray="3 3" visibility="hidden"/>`;
+  g += `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" class="hit"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(yLabel)} by ${esc(xLabel)}">${g}</svg><div class="tip"></div>`;
+
+  legendEl.innerHTML = series.length > 1 ? series.map((s) => `<span><i class="swatch" style="background:${s.color}"></i>${esc(s.name)}</span>`).join("") : "";
+
+  // crosshair tooltip: snap to nearest x value
+  const svg = el.querySelector("svg"), tip = el.querySelector(".tip"), xh = svg.querySelector("#xhair");
+  svg.querySelector(".hit").addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
+    const near = xv.reduce((b, v) => Math.abs(sx(v) - px) < Math.abs(sx(b) - px) ? v : b, xv[0]);
+    xh.setAttribute("x1", sx(near)); xh.setAttribute("x2", sx(near)); xh.setAttribute("visibility", "visible");
+    const rows = series.map((s) => [s, s.points.find((q) => q.x === near)]).filter(([, q]) => q)
+      .sort((a, b) => b[1].y - a[1].y);
+    tip.innerHTML = `<b>${esc(xLabel)} ${esc(xFmt(near))}</b>` + rows.map(([s, q]) =>
+      `<div class="row"><i class="swatch" style="background:${s.color}"></i>${esc(s.name)}: <b>${esc(yFmt(q.y))}</b> ${tipRows ? `<span class="muted">${esc(tipRows(q))}</span>` : ""}</div>`).join("");
+    tip.style.display = "block";
+    const left = (sx(near) / W) * r.width;
+    tip.style.left = Math.min(left + 14, r.width - tip.offsetWidth - 4) + "px";
+    tip.style.top = "8px";
+    if (left + 14 + tip.offsetWidth > r.width) tip.style.left = Math.max(0, left - tip.offsetWidth - 14) + "px";
+  });
+  svg.querySelector(".hit").addEventListener("mouseleave", () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); });
+}
+function niceStep(raw) {
+  const p = 10 ** Math.floor(Math.log10(raw)), f = raw / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+}
+function select(label, options, value, onChange) {
+  const l = document.createElement("label");
+  l.textContent = label;
+  const s = document.createElement("select");
+  s.innerHTML = options.map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(value) ? " selected" : ""}>${esc(t)}</option>`).join("");
+  s.addEventListener("change", () => onChange(s.value));
+  l.appendChild(s);
+  return l;
+}
+
+// ---------------------------------------------------------------- scaling
+const METRICS = {
+  sim_s:           {label: "Simulation time per circuit", fmt: fmtTime, log: true},
+  ns_per_gate_amp: {label: "ns per gate per amplitude", fmt: (v) => fmtNum(v), log: false},
+  gb_s:            {label: "Effective bandwidth (GB/s)", fmt: (v) => fmtNum(v), log: false},
+  ns_per_gate:     {label: "ns per gate", fmt: (v) => fmtNum(v), log: true},
+  peak_rss_mb:     {label: "Peak RSS (MB)", fmt: (v) => fmtNum(v), log: true},
+  prep_s:          {label: "Prep time (DAG build / normalization)", fmt: fmtTime, log: true},
+  load_s:          {label: "IR load time, both circuits", fmt: fmtTime, log: true},
+  process_s:       {label: "Whole check, process wall time", fmt: fmtTime, log: true},
+};
+const DIMS = ["strategy", "qubits", "gates", "gate_set", "angle_mode", "prefix_fraction", "equivalent_fraction"]
+  .filter((d) => uniq(R.map((r) => r[d])).length > 1 || d === "strategy" || d === "qubits" || d === "gates");
+const timed = R.filter((r) => r.sim_s != null);
+const st = {metric: "sim_s", x: uniq(timed.map((r) => r.qubits)).length > 1 ? "qubits" : "gates",
+  by: "strategy", log: null, filters: {}};
+$("scaling-note").textContent = "Medians over pairs. Each 1- or 2-qubit gate touches every amplitude once, so a state-vector simulator "
+  + "should be linear in gates and in 2^n: ns per gate per amplitude stays flat until the state outgrows a cache level "
+  + "or memory bandwidth. Effective bandwidth counts 32 bytes (one complex read and write) per amplitude per gate.";
+
+function renderScaling() {
+  const c = $("scaling-controls");
+  c.innerHTML = "";
+  c.appendChild(select("Metric", Object.entries(METRICS).map(([k, v]) => [k, v.label]), st.metric, (v) => { st.metric = v; st.log = null; renderScaling(); }));
+  c.appendChild(select("X axis", [["qubits", "Qubits"], ["gates", "Base gates"]], st.x, (v) => { st.x = v; if (st.by === v) st.by = "strategy"; renderScaling(); }));
+  c.appendChild(select("Series", DIMS.filter((d) => d !== st.x).map((d) => [d, d.replace("_", " ")]), st.by, (v) => { st.by = v; renderScaling(); }));
+  for (const d of DIMS) {
+    if (d === st.x || d === st.by) continue;
+    const vals = sortVals(uniq(timed.map((r) => r[d])));
+    if (vals.length < 2) continue;
+    c.appendChild(select(d.replace("_", " "), [["*", "all (pooled)"], ...vals.map((v) => [v, v])], st.filters[d] ?? "*",
+      (v) => { st.filters[d] = v; renderScaling(); }));
+  }
+  const m = METRICS[st.metric], yLog = st.log ?? m.log;
+  const b = document.createElement("button");
+  b.textContent = "Log scale"; b.setAttribute("aria-pressed", yLog);
+  b.addEventListener("click", () => { st.log = !yLog; renderScaling(); });
+  const wrap = document.createElement("label"); wrap.textContent = " "; wrap.appendChild(b); c.appendChild(wrap);
+
+  const rows = timed.filter((r) => Object.entries(st.filters).every(([d, v]) => v === "*" || String(r[d]) === String(v)) && r[st.metric] != null);
+  const keys = st.by === "strategy" ? strategies.filter((k) => rows.some((r) => r.strategy === k)) : sortVals(uniq(rows.map((r) => r[st.by])));
+  const shown = keys.slice(0, 8);
+  const series = shown.map((k, i) => {
+    const rs = rows.filter((r) => r[st.by] === k);
+    const xs = sortVals(uniq(rs.map((r) => r[st.x])));
+    return {name: `${st.by === "strategy" ? "" : st.by.replace("_", " ") + " "}${k}`, color: SERIES[i],
+      points: xs.map((x) => { const v = rs.filter((r) => r[st.x] === x).map((r) => r[st.metric]);
+        return {x, y: median(v), n: v.length, lo: Math.min(...v), hi: Math.max(...v)}; })};
+  });
+  lineChart($("scaling-chart"), $("scaling-legend"), {series, xLabel: st.x === "qubits" ? "Qubits" : "Base gates",
+    yLabel: m.label, xLog: st.x === "gates" && uniq(rows.map((r) => r.gates)).length > 2, yLog,
+    xFmt: (v) => Number(v).toLocaleString(), yFmt: m.fmt,
+    tipRows: (q) => `${q.n} pair${q.n === 1 ? "" : "s"}${q.n > 1 ? `, ${m.fmt(q.lo)}–${m.fmt(q.hi)}` : ""}`});
+  if (keys.length > 8) $("scaling-legend").insertAdjacentHTML("beforeend", `<span>+${keys.length - 8} more series hidden; filter to see them</span>`);
+  $("scaling-table").innerHTML = `<tr><th>Series</th><th class="num">${st.x}</th><th class="num">Median</th><th class="num">Min</th><th class="num">Max</th><th class="num">Pairs</th></tr>`
+    + series.flatMap((s) => s.points.map((q) => `<tr><td>${esc(s.name)}</td><td class="num">${q.x}</td><td class="num">${esc(m.fmt(q.y))}</td><td class="num">${esc(m.fmt(q.lo))}</td><td class="num">${esc(m.fmt(q.hi))}</td><td class="num">${q.n}</td></tr>`)).join("");
+}
+if (timed.length) renderScaling(); else $("scaling-chart").innerHTML = '<div class="empty">No completed checks.</div>';
+
+// ---------------------------------------------------------------- kernel scan
+const K = DATA.kernels.filter((k) => k.rows && k.rows.length);
+if (!K.length) { $("kernel-section").style.display = "none"; }
+else {
+  let kn = Math.max(...K.map((k) => k.n)), kmetric = "ns_per_amp";
+  const KM = {ns_per_amp: ["ns per amplitude", (v) => fmtNum(v)], gb_s: ["Effective bandwidth (GB/s)", (v) => fmtNum(v)], ns_per_gate: ["ns per gate", (v) => fmtNum(v)]};
+  const renderKernel = () => {
+    const c = $("kernel-controls"); c.innerHTML = "";
+    c.appendChild(select("Qubits", K.map((k) => k.n).sort((a, b) => a - b).map((n) => [n, n]), kn, (v) => { kn = +v; renderKernel(); }));
+    c.appendChild(select("Metric", Object.entries(KM).map(([k, v]) => [k, v[0]]), kmetric, (v) => { kmetric = v; renderKernel(); }));
+    const k = K.find((k) => k.n === kn);
+    const kinds = ["h", "cx", "z", "cz", "swap"].filter((x) => k.rows.some((r) => r.kind === x));
+    const series = kinds.map((kind, i) => ({name: kind, color: SERIES[i],
+      points: k.rows.filter((r) => r.kind === kind && r[kmetric] != null).map((r) => ({x: r.target, y: r[kmetric]}))}));
+    lineChart($("kernel-chart"), $("kernel-legend"), {series, xLabel: "Target qubit (2-qubit gates: control 0, target q)",
+      yLabel: KM[kmetric][0], xLog: false, yLog: false, xFmt: (v) => v, yFmt: KM[kmetric][1]});
+    $("kernel-table").innerHTML = `<tr><th>Kind</th><th class="num">Target</th><th class="num">ns/gate</th><th class="num">ns/amp</th><th class="num">GB/s</th></tr>`
+      + k.rows.map((r) => `<tr><td>${esc(r.kind)}</td><td class="num">${r.target}</td><td class="num">${fmtNum(r.ns_per_gate)}</td><td class="num">${fmtNum(r.ns_per_amp)}</td><td class="num">${fmtNum(r.gb_s)}</td></tr>`).join("")
+      + `<tr><td colspan="5" class="muted">${k.gates_per_circuit} gates per timed circuit; empty circuit ${fmtTime(k.empty_circuit_s)}</td></tr>`;
+  };
+  renderKernel();
+}
+
+// ---------------------------------------------------------------- run info
+const info = [
+  ["Sweep file", run.sweep_file], ["Started", run.started], ["Finished", run.finished ?? "(incomplete)"],
+  ["Elapsed", run.elapsed_s != null ? fmtTime(run.elapsed_s) : "–"],
+  ["Repeats / probes / tol", `${sweep.repeats} / ${sweep.probes} / ${sweep.tol}`],
+  ["Reference up to", `${sweep.reference_max_qubits} qubits (tol ${sweep.reference_tol})`],
+  ["Timeout", `${sweep.timeout} s`], ["Memory budget", `${sweep.memory_budget_mb} MB${sweep.memory_budget_source ? " (" + sweep.memory_budget_source + ")" : ""}`], ["Jobs", run.jobs],
+  ["Strategies", Object.entries(sweep.strategies).map(([k, v]) => `${k} (${v.strategy})`).join(", ")],
+  ["Host", `${run.host.platform} · ${run.host.cpu} · ${run.host.logical_cpus} threads · ${run.host.memory_mb ? Math.round(run.host.memory_mb).toLocaleString() + " MB" : "?"}${run.host.node ? " · " + run.host.node : ""}`],
+  ...(run.host.slurm ? [["Slurm", Object.entries(run.host.slurm).map(([k, v]) => `${k.replace("SLURM_", "").toLowerCase()}=${v}`).join(" ")]] : []),
+  ...(run.shard_runs ? [["Merged shards", run.shard_runs.map((r) => `${r.shard ? r.shard.join("/") : "-"} on ${r.host.node || "?"}`).join(", ")]] : []),
+  ["Peak RSS source", uniq(R.map((r) => r.rss_source).filter(Boolean)).join(", ") || "–"],
+  ["Bench", run.bench], ["Generator", run.generator],
+];
+$("runinfo").innerHTML = info.map(([k, v]) => `<tr><th>${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join("");
+</script>
+</body>
+</html>

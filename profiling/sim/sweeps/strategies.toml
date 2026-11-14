@@ -1,0 +1,19 @@
+# flat vs dag vs normalized execution across gate pools and angle modes.
+# normalized shows how much gate-count reduction buys back its prep cost.
+name = "strategies"
+repeats = 5
+timeout = 300.0
+probes = 3
+
+[generator]
+qubits = [12, 18]
+gates = 500
+gate_set = ["clifford", "clifford-t", "parameterized", "mixed"]
+angle_mode = ["discrete", "continuous"]
+pairs = 8
+prefix_group_size = 4
+seed = 759
+
+[strategies.flat]
+[strategies.dag]
+[strategies.normalized]
