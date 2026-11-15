@@ -1,0 +1,74 @@
+// qcanopy/stimulus.hpp — input states ("stimuli") for simulation-based equivalence checking.
+//
+// Two circuits A and B are equivalent (up to global phase) iff A|psi> ~ B|psi> for every |psi>.
+// A checker drives both circuits with a set of stimulus states and compares the outputs; this
+// header produces those states.
+//
+// Single-state generators return a StateVector; batch generators return a Stimulus (sim.hpp),
+// tagged by kind, which can be concatenated and handed to the simulator in one call:
+//
+//     Stimulus stim = haar_random_states(n, 8, seed);
+//     stim.append(random_product_states(n, 8, seed))
+//         .append(all_basis_states(n));
+//     std::vector<StateVector> out = Simulator{}.execute(circuit, stim);   // out[i] <-> stim.states[i]
+//
+// Determinism: every generator here is a pure function of (n, seed). Sampling uses an in-house
+// SplitMix64 + Box-Muller pipeline rather than <random> distributions, whose output differs
+// between standard libraries (MSVC vs libstdc++), so stimuli are reproducible across platforms.
+
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
+#include "qcanopy/sim.hpp"
+
+namespace qcanopy {
+
+    // A Haar-random pure state on n qubits: 2^n i.i.d. standard complex Gaussians, normalized.
+    // The resulting vector is uniformly distributed on the unit sphere of C^(2^n), which is
+    // exactly the unitarily invariant (Haar) measure on pure states.
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits].
+    StateVector haar_random_state(int n, uint64_t seed);
+
+    // `count` independent Haar-random states. State k depends only on (n, seed, k), so
+    // increasing `count` extends the batch without changing existing entries.
+    Stimulus haar_random_states(int n, std::size_t count, uint64_t seed);
+
+    // A random product state |v_{n-1}> (x) ... (x) |v_1> (x) |v_0>, where each single-qubit
+    // state |v_k> is independently Haar-random (uniform on the Bloch sphere). Unentangled, so it
+    // models inputs a real device can prepare with one layer of 1-qubit gates.
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits].
+    StateVector random_product_state(int n, uint64_t seed);
+
+    // `count` independent random product states; same batch semantics as haar_random_states.
+    // Batches use a separate seed domain, so the same seed yields unrelated Haar and product batches.
+    Stimulus random_product_states(int n, std::size_t count, uint64_t seed);
+
+    // ---- Computational basis states ----
+    //
+    // Caveat for checkers: basis inputs only pin down U up to a phase PER COLUMN. Comparing each
+    // output pair independently up to phase (|<A i|B i>| = 1) cannot tell Z from I. A checker
+    // must require ONE common phase e^{i phi} with A|i> = e^{i phi} B|i> across all inputs; with
+    // that constraint, passing all_basis_states(n) proves equivalence.
+
+    // The basis state |index> on n qubits (qubit k = bit k of index, as in ir.hpp).
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits] or index >= 2^n.
+    StateVector basis_state(int n, uint64_t index);
+
+    // A uniformly random basis state |i>, i in [0, 2^n).
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits].
+    StateVector random_basis_state(int n, uint64_t seed);
+
+    // `count` independent random basis states (sampled WITH replacement, so repeats are possible);
+    // same batch semantics as haar_random_states, with its own seed domain.
+    Stimulus random_basis_states(int n, std::size_t count, uint64_t seed);
+
+    // Every basis state |0>, |1>, ..., |2^n - 1>, in index order.
+    // Memory is 2^n states x 2^n amplitudes x 16 bytes (n = 10 -> 16 MiB, n = 12 -> 256 MiB),
+    // so this is only practical for small n.
+    // Throws std::invalid_argument if n is outside [0, kMaxQubits].
+    Stimulus all_basis_states(int n);
+
+} // namespace qcanopy

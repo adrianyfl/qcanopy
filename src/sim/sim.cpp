@@ -1,5 +1,9 @@
 #include "qcanopy/sim.hpp"
 
+#include <cstdint>
+#include <stdexcept>
+#include <utility>
+
 namespace qcanopy {
 
     // Initializes state vector.
@@ -31,13 +35,53 @@ namespace qcanopy {
         }
     }
 
+    // Appends one stimulus state, enforcing a uniform qubit count.
+    Stimulus& Stimulus::add(StateVector s, StimulusKind kind){
+        if (s.num_qbits != num_qbits) {
+            throw std::invalid_argument("Stimulus::add: state qubit count does not match stimulus");
+        }
+        states.push_back(std::move(s));
+        kinds.push_back(kind);
+        return *this;
+    }
+
+    // Appends another stimulus batch of the same width.
+    Stimulus& Stimulus::append(const Stimulus& other){
+        if (other.num_qbits != num_qbits) {
+            throw std::invalid_argument("Stimulus::append: qubit count mismatch");
+        }
+        states.insert(states.end(), other.states.begin(), other.states.end());
+        kinds.insert(kinds.end(), other.kinds.begin(), other.kinds.end());
+        return *this;
+    }
+
     // Executes a flattened circuit and returns the final state.
     StateVector Simulator::execute(const Circuit& circuit) const{
-        // Initialize the state vector
-        StateVector state(circuit.n);
+        // Start from |0...0>
+        return execute(circuit, StateVector(circuit.n));
+    }
 
-        // Iterate through the gates and apply them
-        for (const auto& gate : circuit.gates) {
+    // Executes a flattened circuit starting from a caller-provided state.
+    StateVector Simulator::execute(const Circuit& circuit, StateVector state) const{
+        if (state.num_qbits != circuit.n ||
+            state.amplitudes.size() != (std::size_t{1} << circuit.n)) {
+            throw std::invalid_argument("Simulator::execute: initial state size does not match circuit");
+        }
+        evolve(circuit, state);   // no cancellation: always completes
+        return state;
+    }
+
+    // Applies the circuit in place, optionally abandoning the run once it has been cancelled.
+    bool Simulator::evolve(const Circuit& circuit, StateVector& state,
+                           const std::atomic<std::size_t>* stop_at, std::size_t index) const{
+        const std::size_t num_gates = circuit.gates.size();
+        for (std::size_t g = 0; g < num_gates; ++g) {
+            // Periodic cancellation checkpoint (a relaxed load: just a plain read on x86/ARM).
+            if (stop_at && g % kCancelCheckInterval == 0 &&
+                index > stop_at->load(std::memory_order_relaxed)) {
+                return false;
+            }
+            const Gate& gate = circuit.gates[g];
             if (gate.nq == 1) {
                 apply_1q_gate(state, gate);
             } else if (gate.nq == 2) {
@@ -47,8 +91,49 @@ namespace qcanopy {
             }
         }
         state.apply_global_phase(circuit.global_phase);
-        // Return final state vector
-        return state;
+        return true;
+    }
+
+    // Streams the batch through the circuit with early cancellation.
+    void Simulator::execute_each(const Circuit& circuit, const Stimulus& stimulus,
+                                 const OutputVisitor& on_output) const{
+        if (stimulus.num_qbits != circuit.n) {
+            throw std::invalid_argument("Simulator::execute_each: stimulus qubit count does not match circuit");
+        }
+
+        // Lowest index whose callback returned Stop; states with a higher index are cancelled.
+        std::atomic<std::size_t> stop_at{SIZE_MAX};
+
+        // Each iteration touches only its own state plus stop_at, so this loop can be
+        // parallelized (OpenMP / std::execution::par / a thread pool) without other changes.
+        for (std::size_t i = 0; i < stimulus.size(); ++i) {
+            if (i > stop_at.load(std::memory_order_relaxed)) continue;   // cancelled before start
+
+            StateVector state = stimulus.states[i];
+            if (!evolve(circuit, state, &stop_at, i)) continue;          // cancelled mid-run
+
+            if (on_output(i, state) == Control::Stop) {
+                // Atomic min: concurrent stops keep the lowest index.
+                std::size_t cur = stop_at.load(std::memory_order_relaxed);
+                while (i < cur && !stop_at.compare_exchange_weak(cur, i, std::memory_order_relaxed)) {}
+            }
+        }
+    }
+
+    // Executes the circuit on every state of a stimulus batch.
+    std::vector<StateVector> Simulator::execute(const Circuit& circuit, const Stimulus& stimulus) const{
+        if (stimulus.num_qbits != circuit.n) {
+            throw std::invalid_argument("Simulator::execute: stimulus qubit count does not match circuit");
+        }
+
+        // Copy the inputs, then evolve each slot in place. Iterations are fully independent
+        // (each reads and writes only outputs[i]), so this loop is the place to parallelize
+        // later (e.g. OpenMP or std::execution::par) without changing the interface.
+        std::vector<StateVector> outputs = stimulus.states;
+        for (std::size_t i = 0; i < outputs.size(); ++i) {
+            evolve(circuit, outputs[i]);
+        }
+        return outputs;
     }
 
     // Execute directly from the DAG
