@@ -30,6 +30,45 @@ self-contained HTML report.
    python profiling/sim/sim_profile.py run      # smoke sweep, under a minute
    ```
 
+## Run
+
+```sh
+python profiling/sim/sim_profile.py run                                   # sweeps/smoke.toml, under a minute
+python profiling/sim/sim_profile.py run --sweep profiling/sim/sweeps/scaling.toml
+python profiling/sim/sim_profile.py run --sweep profiling/sim/sweeps/large_gates.toml
+```
+
+The runner finds `qcanopy_generate` and `sim_bench` under any `build*/`
+directory (newest wins); pass `--generator` / `--bench` to choose explicitly.
+
+Each run creates `generated/sim-profile/<timestamp>-<sweep name>/`:
+
+```text
+run.json         sweep, host, git commit, sim.cpp hash, timings
+results.jsonl    one record per check (written as it goes)
+kernels.jsonl    one kernel scan per qubit count
+datasets/<id>/   the qcanopy_generate IR output for each grid point
+report.html      the report; open it in a browser
+```
+
+Other commands:
+
+```sh
+sim_profile.py summary [RUN_DIR]     # print the terminal tables again (default: latest run)
+sim_profile.py report  [RUN_DIR]     # re-render report.html (e.g. after editing the template)
+sim_profile.py run --resume RUN_DIR  # finish an interrupted run; completed checks are kept, errors retried
+sim_profile.py merge OUT_DIR SHARD_DIR...   # combine shard runs into one report
+```
+
+`run` options: `--set KEY=VALUE` (override any sweep value, see below),
+`--jobs N` (concurrent checks, default 1), `--timeout S`, `--repeats N`,
+`--out DIR` or `--run-dir DIR`, `--shard K/N`, `--generator PATH`, `--bench PATH`.
+Ctrl+C or SIGTERM stops the running worker and leaves the run resumable.
+
+`run.json` records a short SHA-256 of `src/sim/sim.cpp` next to the commit, so
+two reports from before and after an optimization can be told apart even with
+uncommitted edits.
+
 ## Sweep files
 
 A sweep is a TOML file. Scalar `[generator]` values apply to every dataset, and
@@ -45,7 +84,7 @@ probes = 3                   # |0...0> plus 2 random product-state inputs per pa
 tol = 1e-8                   # fidelity tolerance for the equivalence verdict
 reference_max_qubits = 12    # independent reference simulation up to this size
 reference_tol = 1e-8         # max |amplitude difference| allowed against the reference
-memory_budget_mb = 8192      # default: half of RAM
+memory_budget_mb = 8192      # default: half of RAM, or 85% of the Slurm allocation
 kernel_scan = true           # or a list of qubit counts, or false
 pair_gate_budget = 400_000   # optional: pairs = min(pairs, budget // gates), at least 2
 skip_after_timeouts = 2      # optional: after 2 timeouts at N gates, skip that series from N up
@@ -99,7 +138,7 @@ resumed run keeps them.
 | Equivalence coverage | `probes` | One extra execution of A and B per probe beyond the first |
 | Reference check size | `reference_max_qubits` | Cost ~4·gates·2^n per circuit; also capped at 4e8 operations by the bench |
 | Time per check | `timeout` | Hard kill; combine with `skip_after_timeouts` |
-| Memory allowed | `memory_budget_mb` | Default: half of RAM |
+| Memory allowed | `memory_budget_mb` | Default: half of RAM, or 85% of the Slurm allocation inside a job |
 | Kernel scans | `kernel_scan` | `true` (every qubit count), a list such as `[16, 20, 24]`, or `false` |
 
 Memory and time per check at larger sizes (one core, ~3 ns per amplitude per gate):
