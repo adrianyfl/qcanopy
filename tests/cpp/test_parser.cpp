@@ -164,6 +164,33 @@ namespace {
         CHECK(parse_body("").size() == 0);
     }
 
+    void test_comments() {
+        const Circuit c = parse_qasm(
+            "// generated file\n"
+            "OPENQASM 3.0; // version\n"
+            "include \"stdgates.inc\";\n"
+            "/* two qubits,\n"
+            "   one register */\n"
+            "qubit[2] q;\n"
+            "h q[0]; // superposition\n"
+            "cx /* control */ q[0], /* target */ q[1];\n"
+            "// rz(0.25) q[0];\n"
+            "rz(/* angle */ 0.5) q[1]; /* trailing */");
+        CHECK(c.n == 2 && c.size() == 3);
+        if (c.size() == 3) {
+            CHECK(is_gate(c.gates[0], make_gate(K::H, 0)));
+            CHECK(is_gate(c.gates[1], make_gate(K::CX, 0, 1)));
+            CHECK(is_gate(c.gates[2], make_gate(K::RZ, 1, {0.5, 0, 0})));
+        }
+
+        // Commented-out statements are not parsed, so they cannot fail.
+        CHECK(parse_body("// h q[99];\n/* foo q[0]; */").size() == 0);
+
+        // Errors after a comment keep their real position.
+        CHECK(body_fails_at("/* a\n b */ h q[9];", 5, 11));
+        CHECK(body_fails_at("h q[0]; /* never closed", 4, 9));
+    }
+
     void test_dag() {
         const CircuitDAG dag = parse_qasm_dag(kHeader + "gphase(0.5); h q[0]; cx q[0],q[1]; t q[2];");
         CHECK(dag.n == 3);
@@ -243,6 +270,8 @@ namespace {
         CHECK(body_fails_at("rz(--1) q[0];", 4, 5));
         CHECK(body_fails_at("rz(q) q[0];", 4, 4));
         CHECK(body_fails_at("rz(pi) q[0];", 4, 4));                         // no named constants
+        CHECK(body_fails_at("rz(1/2) q[0];", 4, 5));                        // no arithmetic
+        CHECK(body_fails_at("rz(+1) q[0];", 4, 4));
         CHECK(body_fails_at("rz(1e999) q[0];", 4, 4));
 
         CHECK(body_fails_at("gphase 1;", 4, 8));
@@ -250,8 +279,8 @@ namespace {
         CHECK(body_fails_at("gphase();", 4, 8));
 
         // Lexer errors come through unchanged.
-        CHECK(body_fails_at("h q[0]; // note", 4, 9));
-        CHECK(body_fails_at("rz(1/2) q[0];", 4, 5));
+        CHECK(body_fails_at("h q[0]; @", 4, 9));
+        CHECK(body_fails_at("rz(1e) q[0];", 4, 4));
     }
 
     void test_messages() {
@@ -274,6 +303,7 @@ int main() {
     test_global_phase();
     test_numbers();
     test_layout();
+    test_comments();
     test_dag();
     test_header_errors();
     test_gate_errors();

@@ -9,7 +9,8 @@
 // 5. A number with a point or an exponent is a Float ("5." and ".5" included), anything else
 //    an Integer. The value is not converted here.
 // 6. Strings are double-quoted and end on the same line. Token::text excludes the quotes.
-// 7. Comments are not recognised; '/' is an unexpected character.
+// 7. Comments are skipped like whitespace: "//" to the end of the line, and "/*" to the
+//    next "*/". Block comments do not nest.
 
 #pragma once
 
@@ -28,7 +29,9 @@ namespace qcanopy::qasm {
         LBracket, RBracket,     // [ ]
         Comma,
         Semicolon,
-        Minus,
+        Plus, Minus,
+        Star, Slash,
+        DoubleStar,             // **
         End,                    // end of the source
     };
 
@@ -45,13 +48,16 @@ namespace qcanopy::qasm {
 
         // Returns the next token. Once the source is exhausted every call returns End,
         // positioned just past the last character. Throws ParseError on a character or
-        // literal that cannot start or continue a token.
+        // literal that cannot start or continue a token, or a block comment left open.
         Token next();
 
     private:
         // The character `ahead` positions past the current one, or '\0' beyond the end.
         char peek(std::size_t ahead = 0) const;
         void advance();
+
+        // Skips whitespace and comments up to the next token or the end of the source.
+        void skip_blanks();
 
         // Consumes a number that starts at the current position; t supplies the error position.
         TokenKind number(const Token& t);

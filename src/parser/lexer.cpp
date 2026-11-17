@@ -43,8 +43,30 @@ namespace qcanopy::qasm {
         ++pos_;
     }
 
+    void Lexer::skip_blanks() {
+        for (;;) {
+            while (pos_ < src_.size() && is_space(src_[pos_])) advance();
+
+            if (peek() == '/' && peek(1) == '/') {
+                while (pos_ < src_.size() && src_[pos_] != '\n') advance();
+            } else if (peek() == '/' && peek(1) == '*') {
+                const uint32_t line = line_, column = column_;
+                advance();
+                advance();
+                while (!(peek() == '*' && peek(1) == '/')) {
+                    if (pos_ == src_.size()) throw ParseError(line, column, "unterminated comment");
+                    advance();
+                }
+                advance();
+                advance();
+            } else {
+                return;
+            }
+        }
+    }
+
     Token Lexer::next() {
-        while (pos_ < src_.size() && is_space(src_[pos_])) advance();
+        skip_blanks();
 
         Token t{TokenKind::End, src_.substr(pos_, 0), line_, column_};
         if (pos_ == src_.size()) return t;
@@ -76,7 +98,16 @@ namespace qcanopy::qasm {
                 case ']': t.kind = TokenKind::RBracket; break;
                 case ',': t.kind = TokenKind::Comma; break;
                 case ';': t.kind = TokenKind::Semicolon; break;
+                case '+': t.kind = TokenKind::Plus; break;
                 case '-': t.kind = TokenKind::Minus; break;
+                case '/': t.kind = TokenKind::Slash; break;
+                case '*':
+                    t.kind = TokenKind::Star;
+                    if (peek(1) == '*') {
+                        t.kind = TokenKind::DoubleStar;
+                        advance();
+                    }
+                    break;
                 default:
                     throw ParseError(t.line, t.column, "unexpected " + describe(c));
             }

@@ -102,6 +102,61 @@ namespace {
         CHECK(lexes_to("\"q[0]; // x\" ;", {{K::String, "q[0]; // x"}, {K::Semicolon, ";"}}));
     }
 
+    void test_operators() {
+        CHECK(lexes_to("1+2-3*4/5**6",
+                       {{K::Integer, "1"}, {K::Plus, "+"}, {K::Integer, "2"}, {K::Minus, "-"},
+                        {K::Integer, "3"}, {K::Star, "*"}, {K::Integer, "4"}, {K::Slash, "/"},
+                        {K::Integer, "5"}, {K::DoubleStar, "**"}, {K::Integer, "6"}}));
+        CHECK(lexes_to("pi/2", {{K::Identifier, "pi"}, {K::Slash, "/"}, {K::Integer, "2"}}));
+        CHECK(lexes_to("-pi", {{K::Minus, "-"}, {K::Identifier, "pi"}}));
+        // "**" is one token only when the stars touch; a third star stands alone.
+        CHECK(lexes_to("* *", {{K::Star, "*"}, {K::Star, "*"}}));
+        CHECK(lexes_to("***", {{K::DoubleStar, "**"}, {K::Star, "*"}}));
+        // An exponent sign belongs to the number, any other sign does not.
+        CHECK(lexes_to("2e-3-4", {{K::Float, "2e-3"}, {K::Minus, "-"}, {K::Integer, "4"}}));
+
+        const std::vector<Token> t = lex("a ** b");
+        CHECK(t.size() == 3 && t[1].column == 3 && t[2].column == 6);
+    }
+
+    void test_comments() {
+        // A line comment runs to the end of its line, whatever it contains.
+        CHECK(lexes_to("h // cx q[0]; /* \" \nx", {{K::Identifier, "h"}, {K::Identifier, "x"}}));
+        CHECK(lexes_to("// only a comment", {}));
+        CHECK(lexes_to("//", {}));
+        CHECK(lexes_to("h//x\r\ny", {{K::Identifier, "h"}, {K::Identifier, "y"}}));
+
+        // A block comment ends at the first "*/" and may span lines.
+        CHECK(lexes_to("h /* x */ y", {{K::Identifier, "h"}, {K::Identifier, "y"}}));
+        CHECK(lexes_to("h/**/y", {{K::Identifier, "h"}, {K::Identifier, "y"}}));
+        CHECK(lexes_to("/* a\n // b\n * c **/ y /* d */", {{K::Identifier, "y"}}));
+        CHECK(lexes_to("/* a /* b */ c */",
+                       {{K::Identifier, "c"}, {K::Star, "*"}, {K::Slash, "/"}}));      // no nesting
+
+        // A lone '/' is division, and a comment marker inside a string is text.
+        CHECK(lexes_to("1 / 2", {{K::Integer, "1"}, {K::Slash, "/"}, {K::Integer, "2"}}));
+        CHECK(lexes_to("\"a//b/*c\"", {{K::String, "a//b/*c"}}));
+
+        // Positions account for the comments skipped.
+        const std::vector<Token> t = lex("/* one\n   two */ h // tail\n  x");
+        CHECK(t.size() == 2);
+        if (t.size() == 2) {
+            CHECK(t[0].line == 2 && t[0].column == 11);
+            CHECK(t[1].line == 3 && t[1].column == 3);
+        }
+
+        // An open block comment is reported where it starts.
+        CHECK(fails_at("h /* never closed", 1, 3));
+        CHECK(fails_at("h\n  /* x\n\n", 2, 3));
+        CHECK(fails_at("/*/", 1, 1));
+        try {
+            (void)lex("/* x");
+            CHECK(false);
+        } catch (const ParseError& e) {
+            CHECK(std::string(e.what()) == "1:1: unterminated comment");
+        }
+    }
+
     void test_positions() {
         // CRLF line ending, then a tab before the second statement.
         const std::vector<Token> t = lex("h q[0];\r\n\tcx q[1],q[0];");
@@ -138,9 +193,8 @@ namespace {
 
     void test_errors() {
         CHECK(fails_at("h q[0];\n  @", 2, 3));
-        CHECK(fails_at("// comment", 1, 1));
-        CHECK(fails_at("rz(pi/2) q[0];", 1, 6));           // '/': no expressions
-        CHECK(fails_at("rz(+1) q[0];", 1, 4));
+        CHECK(fails_at("rz(2^3) q[0];", 1, 5));
+        CHECK(fails_at("x q[0]; # note", 1, 9));
         CHECK(fails_at("x q[0]; \xc3\xa9", 1, 9));         // UTF-8 bytes
         CHECK(fails_at(std::string_view("h\0q", 3), 1, 2));
 
@@ -176,6 +230,8 @@ int main() {
     test_identifiers();
     test_numbers();
     test_strings();
+    test_operators();
+    test_comments();
     test_positions();
     test_end();
     test_errors();

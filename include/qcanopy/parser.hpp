@@ -11,7 +11,8 @@
 //      gphase(a);                          adds a to Circuit::global_phase
 //      g q[i];   g(a) q[i];   g q[i],q[j];
 //    where g is one of id h x y z s sdg t tdg rx ry rz p U cx cz swap.
-//    Arguments are numeric literals with an optional leading '-'.
+//    Arguments are numeric literals with an optional leading '-'. Comments, "// ..." and
+//    "/* ... */", may appear wherever whitespace may.
 //
 // 2. Gates are added in source order, and operand order is kept: for cx the first operand
 //    is the control (ir.hpp, point 3).
