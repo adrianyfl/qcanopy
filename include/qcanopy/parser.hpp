@@ -11,8 +11,8 @@
 //      gphase(a);                          adds a to Circuit::global_phase
 //      g q[i];   g(a) q[i];   g q[i],q[j];
 //    where g is one of id h x y z s sdg t tdg rx ry rz p U cx cz swap.
-//    Arguments are numeric literals with an optional leading '-'. Comments, "// ..." and
-//    "/* ... */", may appear wherever whitespace may.
+//    Arguments are constant expressions (point 4); register sizes and qubit indices are
+//    integer literals. Comments, "// ..." and "/* ... */", may appear wherever whitespace may.
 //
 // 2. Gates are added in source order, and operand order is kept: for cx the first operand
 //    is the control (ir.hpp, point 3).
@@ -20,6 +20,10 @@
 // 3. Every gate maps to the IR gate with the same matrix except U: the source's
 //    U(theta, phi, lambda) is e^{i theta/2} times the IR's phase-free U, so it becomes a
 //    U gate plus theta/2 of global phase.
+//
+// 4. A constant expression is built from numeric literals, the constant pi, parentheses,
+//    unary '-', and the operators * / and + - with their usual precedence. Everything is
+//    evaluated as a real, so 1/2 is 0.5.
 
 #pragma once
 

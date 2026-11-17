@@ -122,11 +122,78 @@ namespace {
         CHECK(parse_qasm("OPENQASM 3.0;\ngphase(0.5);\nqubit[1] q;\n").global_phase == 0.5);
     }
 
+    // The value an expression has as a gate argument.
+    double angle(const std::string& text) {
+        const Circuit c = parse_body("rz(" + text + ") q[0];");
+        return c.size() == 1 ? c.gates[0].params[0] : -999.0;
+    }
+
+    constexpr double kPi = 3.14159265358979323846;
+
+    // parser.hpp, point 4.
+    void test_expressions() {
+        CHECK(angle("pi") == kPi);
+        CHECK(angle("pi/2") == kPi / 2);
+        CHECK(angle("-pi/4") == -kPi / 4);
+        CHECK(angle("3*pi") == 3 * kPi);
+        CHECK(angle("-3*pi/2") == -3 * kPi / 2);
+        CHECK(angle("0.5*pi") == 0.5 * kPi);
+        CHECK(angle("6.103515625e-05*pi") == 6.103515625e-05 * kPi);
+        CHECK(angle("pi - pi/8 + 1") == kPi - kPi / 8 + 1);
+
+        // Precedence and associativity.
+        CHECK(angle("1+2*3") == 7.0);
+        CHECK(angle("(1+2)*3") == 9.0);
+        CHECK(angle("10-4-3") == 3.0);
+        CHECK(angle("2/4/2") == 0.25);
+        CHECK(angle("2*-3") == -6.0);
+        CHECK(angle("--1") == 1.0);
+        CHECK(angle("-(-(pi))") == kPi);
+        CHECK(angle("((((1))))") == 1.0);
+
+        // Integer literals are reals like any other number.
+        CHECK(angle("1/2") == 0.5);
+        CHECK(angle("-7/2") == -3.5);
+        CHECK(angle("3/2*pi") == 1.5 * kPi);
+        CHECK(angle("3*pi/2") == 3 * kPi / 2);
+
+        // The same expressions work for gphase and for every parameter of U.
+        CHECK(parse_body("gphase(pi/4); gphase(-pi/4 + 1);").global_phase == kPi / 4 + (-kPi / 4 + 1));
+        const Circuit u = parse_body("U(pi/2, 0, 2*pi) q[1];");
+        CHECK(u.size() == 1 && is_gate(u.gates[0], make_gate(K::U, 1, {kPi / 2, 0, 2 * kPi})));
+        CHECK(u.global_phase == kPi / 4);
+    }
+
+    void test_expression_errors() {
+        // A result that is not a finite number is reported where the expression starts.
+        CHECK(body_fails_at("rz(1/0) q[0];", 4, 4));
+        CHECK(body_fails_at("rz(pi/(1-1)) q[0];", 4, 4));
+        CHECK(body_fails_at("rz(0/0) q[0];", 4, 4));
+        CHECK(body_fails_at("rz(1e300*1e300) q[0];", 4, 4));
+
+        CHECK(body_fails_at("rz(foo) q[0];", 4, 4));
+        CHECK(body_fails_at("rz(q) q[0];", 4, 4));                  // a register is not a number
+        CHECK(body_fails_at("rz(tau) q[0];", 4, 4));                // pi is the only constant
+        CHECK(body_fails_at("rz(sin(1)) q[0];", 4, 4));             // no functions
+        CHECK(body_fails_at("rz(2**3) q[0];", 4, 5));               // no power operator
+        CHECK(body_fails_at("rz(+1) q[0];", 4, 4));                 // no unary plus
+        CHECK(body_fails_at("rz(*2) q[0];", 4, 4));
+        CHECK(body_fails_at("rz(1+) q[0];", 4, 6));
+        CHECK(body_fails_at("rz(1 2) q[0];", 4, 6));
+        CHECK(body_fails_at("rz((1) q[0];", 4, 8));                 // unbalanced '('
+        CHECK(body_fails_at("rz(1)) q[0];", 4, 6));
+        CHECK(body_fails_at("rz(2^3) q[0];", 4, 5));
+
+        // Register sizes and qubit indices are literals, not expressions.
+        CHECK(fails_at("OPENQASM 3.0;\nqubit[1+1] q;", 2, 8));
+        CHECK(body_fails_at("h q[1-1];", 4, 6));
+
+        CHECK(error_of(kHeader + "rz(foo) q[0];") == "4:4: unknown constant 'foo'");
+        CHECK(error_of(kHeader + "rz(1/0) q[0];") ==
+              "4:4: expression does not evaluate to a finite number");
+    }
+
     void test_numbers() {
-        const auto angle = [](const std::string& text) {
-            const Circuit c = parse_body("rz(" + text + ") q[0];");
-            return c.size() == 1 ? c.gates[0].params[0] : -999.0;
-        };
         CHECK(angle("1") == 1.0);
         CHECK(angle("-1") == -1.0);
         CHECK(angle("0") == 0.0);
@@ -267,11 +334,6 @@ namespace {
         CHECK(body_fails_at("U(1,2,3,4) q[0];", 4, 1));
         CHECK(body_fails_at("rz(1 q[0];", 4, 6));
         CHECK(body_fails_at("rz(1,) q[0];", 4, 6));
-        CHECK(body_fails_at("rz(--1) q[0];", 4, 5));
-        CHECK(body_fails_at("rz(q) q[0];", 4, 4));
-        CHECK(body_fails_at("rz(pi) q[0];", 4, 4));                         // no named constants
-        CHECK(body_fails_at("rz(1/2) q[0];", 4, 5));                        // no arithmetic
-        CHECK(body_fails_at("rz(+1) q[0];", 4, 4));
         CHECK(body_fails_at("rz(1e999) q[0];", 4, 4));
 
         CHECK(body_fails_at("gphase 1;", 4, 8));
@@ -302,6 +364,8 @@ int main() {
     test_every_gate();
     test_global_phase();
     test_numbers();
+    test_expressions();
+    test_expression_errors();
     test_layout();
     test_comments();
     test_dag();

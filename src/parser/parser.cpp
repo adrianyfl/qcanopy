@@ -50,6 +50,8 @@ namespace qcanopy {
             return nullptr;
         }
 
+        constexpr double kPi = 3.14159265358979323846;
+
         std::string quoted(std::string_view s) { return "'" + std::string(s) + "'"; }
 
         // How a token is named in an error message.
@@ -151,7 +153,7 @@ namespace qcanopy {
             void gphase() {
                 advance();
                 expect(TokenKind::LParen, "'('");
-                circuit_.global_phase += number();
+                circuit_.global_phase += argument();
                 expect(TokenKind::RParen, "')'");
                 expect(TokenKind::Semicolon, "';'");
             }
@@ -169,7 +171,7 @@ namespace qcanopy {
                 if (accept(TokenKind::LParen)) {
                     if (tok_.kind != TokenKind::RParen) {
                         do {
-                            const double v = number();
+                            const double v = argument();
                             if (nparams < 3) params[nparams] = v;
                             ++nparams;
                         } while (accept(TokenKind::Comma));
@@ -217,12 +219,57 @@ namespace qcanopy {
                 return static_cast<uint8_t>(i);
             }
 
-            double number() {
-                const bool negative = accept(TokenKind::Minus);
-                if (tok_.kind != TokenKind::Integer && tok_.kind != TokenKind::Float)
-                    fail(tok_, "expected a number but found " + describe(tok_));
-                const Token t = advance();
+            // A gate or gphase argument: a constant expression (parser.hpp, point 4).
+            double argument() {
+                const Token start = tok_;
+                const double v = sum();
+                if (!std::isfinite(v))
+                    fail(start, "expression does not evaluate to a finite number");
+                return v;
+            }
 
+            double sum() {
+                double v = product();
+                while (tok_.kind == TokenKind::Plus || tok_.kind == TokenKind::Minus) {
+                    const bool plus = advance().kind == TokenKind::Plus;
+                    const double rhs = product();
+                    v = plus ? v + rhs : v - rhs;
+                }
+                return v;
+            }
+
+            double product() {
+                double v = unary();
+                while (tok_.kind == TokenKind::Star || tok_.kind == TokenKind::Slash) {
+                    const bool times = advance().kind == TokenKind::Star;
+                    const double rhs = unary();
+                    v = times ? v * rhs : v / rhs;
+                }
+                return v;
+            }
+
+            double unary() {
+                if (accept(TokenKind::Minus)) return -unary();
+                return primary();
+            }
+
+            double primary() {
+                if (accept(TokenKind::LParen)) {
+                    const double v = sum();
+                    expect(TokenKind::RParen, "')'");
+                    return v;
+                }
+                if (tok_.kind == TokenKind::Integer || tok_.kind == TokenKind::Float)
+                    return real(advance());
+                if (tok_.kind == TokenKind::Identifier) {
+                    const Token name = advance();
+                    if (name.text == "pi") return kPi;
+                    fail(name, "unknown constant " + quoted(name.text));
+                }
+                fail(tok_, "expected a number but found " + describe(tok_));
+            }
+
+            double real(const Token& t) const {
                 // The classic locale keeps '.' as the decimal point whatever the global locale is.
                 std::istringstream in{std::string(t.text)};
                 in.imbue(std::locale::classic());
@@ -230,7 +277,7 @@ namespace qcanopy {
                 in >> v;
                 if (in.fail() || !std::isfinite(v))
                     fail(t, "number " + quoted(t.text) + " is out of range");
-                return negative ? -v : v;
+                return v;
             }
 
             unsigned long long integer(const Token& t) {
