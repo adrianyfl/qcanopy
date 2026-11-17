@@ -1,0 +1,139 @@
+{
+  "schema": "qdag/1",
+  "num_qubits": 4,
+  "nodes": [
+    {
+      "id": "a0",
+      "op": "h",
+      "qubits": [
+        0
+      ],
+      "params": []
+    },
+    {
+      "id": "a1",
+      "op": "z",
+      "qubits": [
+        0
+      ],
+      "params": []
+    },
+    {
+      "id": "a2",
+      "op": "h",
+      "qubits": [
+        0
+      ],
+      "params": []
+    },
+    {
+      "id": "a3",
+      "op": "h",
+      "qubits": [
+        0
+      ],
+      "params": []
+    },
+    {
+      "id": "a4",
+      "op": "z",
+      "qubits": [
+        0
+      ],
+      "params": []
+    },
+    {
+      "id": "b0",
+      "op": "x",
+      "qubits": [
+        1
+      ],
+      "params": []
+    },
+    {
+      "id": "b1",
+      "op": "h",
+      "qubits": [
+        1
+      ],
+      "params": []
+    },
+    {
+      "id": "b2",
+      "op": "z",
+      "qubits": [
+        1
+      ],
+      "params": []
+    },
+    {
+      "id": "c0",
+      "op": "h",
+      "qubits": [
+        2
+      ],
+      "params": []
+    },
+    {
+      "id": "c1",
+      "op": "cx",
+      "qubits": [
+        2,
+        3
+      ],
+      "params": []
+    },
+    {
+      "id": "c2",
+      "op": "rz",
+      "qubits": [
+        3
+      ],
+      "params": [
+        0.25
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "a0",
+      "target": "a1",
+      "qubit": 0
+    },
+    {
+      "source": "a1",
+      "target": "a2",
+      "qubit": 0
+    },
+    {
+      "source": "a2",
+      "target": "a3",
+      "qubit": 0
+    },
+    {
+      "source": "a3",
+      "target": "a4",
+      "qubit": 0
+    },
+    {
+      "source": "b0",
+      "target": "b1",
+      "qubit": 1
+    },
+    {
+      "source": "b1",
+      "target": "b2",
+      "qubit": 1
+    },
+    {
+      "source": "c0",
+      "target": "c1",
+      "qubit": 2
+    },
+    {
+      "source": "c1",
+      "target": "c2",
+      "qubit": 3
+    }
+  ]
+}

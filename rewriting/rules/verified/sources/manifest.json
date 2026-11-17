@@ -1,0 +1,170 @@
+[
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "eccset/Nam_5_3_complete_ECC_set.json",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/eccset/Nam_5_3_complete_ECC_set.json",
+    "file": "quartz--eccset--Nam_5_3_complete_ECC_set.json",
+    "sha256": "b2250c4136ad81f2d1d311602de54224a36ecfb72255ee77a7784cc929d85c5b"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/README.md",
+    "file": "quartz--README.md",
+    "sha256": "22a97bd246357d8ce23be17940bbdd01ac5417e860da54a5845ed315d55530fd"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "experiment/ecc_set/rigetti_4_ecc.json",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/experiment/ecc_set/rigetti_4_ecc.json",
+    "file": "quartz--experiment--ecc_set--rigetti_4_ecc.json",
+    "sha256": "8918f64b20f029be2fa606cec9e31842c45ddb6ef9a8a088ef0bd843b5eaef4a"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "LICENSE",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/LICENSE",
+    "file": "quartz--LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "eccset/Clifford_T_5_3_complete_ECC_set.json",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/eccset/Clifford_T_5_3_complete_ECC_set.json",
+    "file": "quartz--eccset--Clifford_T_5_3_complete_ECC_set.json",
+    "sha256": "329dec94c13c20aae98ff00a046bdf650ad0518de3aed4e08836e7120d59d479"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "src/python/verifier/gates.py",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/src/python/verifier/gates.py",
+    "file": "quartz--src--python--verifier--gates.py",
+    "sha256": "605fa0c52b6604b8dd3b707a68da1f7d0d2163647113b0e9851a436c412a91f3"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "src/python/verifier/verify_equivalences.py",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/src/python/verifier/verify_equivalences.py",
+    "file": "quartz--src--python--verifier--verify_equivalences.py",
+    "sha256": "e0e0de2aa481c64d1ada88c5f76cdb257c8cecd40a41bef497c77ed2f05e367a"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "src/python/verifier/verifier.py",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/src/python/verifier/verifier.py",
+    "file": "quartz--src--python--verifier--verifier.py",
+    "sha256": "fb2252e91170d8f0daaee7db85505e9691af5b76058990e2da52cfa3a8f2dbef"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "src/quartz/gate/rz.h",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/src/quartz/gate/rz.h",
+    "file": "quartz--src--quartz--gate--rz.h",
+    "sha256": "77151d7415c8898d13c51c844687bb9987b70f8a71270d2c53e2f3850983235e"
+  },
+  {
+    "repo": "quantum-compiler/quartz",
+    "commit": "2a5892efd6dab9ce763510abb131a2615e24205c",
+    "path": "src/quartz/gate/cx.h",
+    "url": "https://raw.githubusercontent.com/quantum-compiler/quartz/2a5892efd6dab9ce763510abb131a2615e24205c/src/quartz/gate/cx.h",
+    "file": "quartz--src--quartz--gate--cx.h",
+    "sha256": "c0b08e500f9e28a414b3c68fa5f6a59cc8d438ac2c745fddda623ea348dbecd3"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "README.md",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/README.md",
+    "file": "SQIR--README.md",
+    "sha256": "0cb3f711bf38f4ddcaafcc70556e4361d177de67efa074f2c53f38f8ae0b79ed"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "SQIR/Equivalences.v",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/SQIR/Equivalences.v",
+    "file": "SQIR--SQIR--Equivalences.v",
+    "sha256": "564225aa7ab9bc4fe3140b42f924dd9e0329ceb093beb12bf55380bf56099648"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "VOQC/GateCancellation.v",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/VOQC/GateCancellation.v",
+    "file": "SQIR--VOQC--GateCancellation.v",
+    "sha256": "48c2c6049d1a550720013eb2e974234646b8fecb076b02ea561f1c7cbf5bf4e1"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "VOQC/HadamardReduction.v",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/VOQC/HadamardReduction.v",
+    "file": "SQIR--VOQC--HadamardReduction.v",
+    "sha256": "18379369518cb1c5829b410b8ec812fd0d12e8cae6d830c3632872a2f1c57b69"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "VOQC/NotPropagation.v",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/VOQC/NotPropagation.v",
+    "file": "SQIR--VOQC--NotPropagation.v",
+    "sha256": "cc4f0a8e969202b3913b395c92120f9b03d28c5a2aadf9097d35e42d18878c6a"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "VOQC/FullGateSet.v",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/VOQC/FullGateSet.v",
+    "file": "SQIR--VOQC--FullGateSet.v",
+    "sha256": "3a3ee389e40efd06db62db2e9f4ab9b05e42f4b9c4d728ef64e579e972494b8e"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "VOQC/ChangeRotationBasis.v",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/VOQC/ChangeRotationBasis.v",
+    "file": "SQIR--VOQC--ChangeRotationBasis.v",
+    "sha256": "b1670b68d8b2ab3cbf54d1462d40b7c41ee002607deed2b5aade7e3530bbf305"
+  },
+  {
+    "repo": "Qiskit/qiskit",
+    "commit": "da047b1fc0742316bfc2d09fc4d8e5407fa3e544",
+    "path": "LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/Qiskit/qiskit/da047b1fc0742316bfc2d09fc4d8e5407fa3e544/LICENSE.txt",
+    "file": "qiskit--LICENSE.txt",
+    "sha256": "0a7558bc0c5a5bcac5e2bdc5e5367f3550b0c3b45b7e6f5a81b4f9fde6693374"
+  },
+  {
+    "repo": "Qiskit/qiskit",
+    "commit": "da047b1fc0742316bfc2d09fc4d8e5407fa3e544",
+    "path": "crates/transpiler/src/standard_equivalence_library.rs",
+    "url": "https://raw.githubusercontent.com/Qiskit/qiskit/da047b1fc0742316bfc2d09fc4d8e5407fa3e544/crates/transpiler/src/standard_equivalence_library.rs",
+    "file": "qiskit--crates--transpiler--src--standard_equivalence_library.rs",
+    "sha256": "3d8c2da16e7beb939ac1cb9e47a622ee16ccb226b2c62a15a659340dbdb8e704"
+  },
+  {
+    "repo": "Qiskit/qiskit",
+    "commit": "da047b1fc0742316bfc2d09fc4d8e5407fa3e544",
+    "path": "qiskit/circuit/library/standard_gates/equivalence_library.py",
+    "url": "https://raw.githubusercontent.com/Qiskit/qiskit/da047b1fc0742316bfc2d09fc4d8e5407fa3e544/qiskit/circuit/library/standard_gates/equivalence_library.py",
+    "file": "qiskit--qiskit--circuit--library--standard_gates--equivalence_library.py",
+    "sha256": "c00bdb12463e2107670d667fd17e05c4b48567e74e66a80c388b48da757c96dc"
+  },
+  {
+    "repo": "inQWIRE/SQIR",
+    "commit": "134fb942265091baa3e3972f78f72da41827351f",
+    "path": "LICENSE.md",
+    "url": "https://raw.githubusercontent.com/inQWIRE/SQIR/134fb942265091baa3e3972f78f72da41827351f/LICENSE.md",
+    "file": "SQIR--LICENSE.md",
+    "sha256": "0e0ccde30a761e0479cf31ad4fc2b8b8fd2e6767183d2f223008cfd4e0249e1f"
+  }
+]

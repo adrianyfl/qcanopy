@@ -87,6 +87,10 @@ prefix does not establish circuit equivalence.
 - [Parser quick start](docs/parser_quickstart.md): parsing generated datasets,
   the C++ calls, accepted input, how parsed circuits relate to IR files, and errors.
 - [Peeling algorithm](src/rewrite/algorithm.md): matching prefix/suffix removal.
+- [Python DAG rewriting interface](rewriting/README.md): SWAP removal with output
+  mappings, fixed-library boundary classification, optional overlap, and bounded
+  circuit-pair proofs. This standalone Python module exchanges JSON with the
+  generator; it does not require a C++ build or provide simulator integration.
 
 Datasets written under `generated/` are Git-ignored. Generate them locally rather
 than expecting sample datasets or workspace-specific build tools in a fresh clone.

@@ -1,0 +1,47 @@
+{
+  "verification": "exact cyclotomic Laurent-polynomial matrices; no floating point or tolerance",
+  "statistics": {
+    "source_quartz_classes": 2005,
+    "input_relations": 2453,
+    "accepted_raw_projective": 243,
+    "common_boundary_gates_removed": 106,
+    "accepted_raw_exact": 2210,
+    "duplicate_relations_removed": 473,
+    "source_qiskit_calls": 126,
+    "trivial_after_independent_order_or_context_removal": 5,
+    "class_wire_or_parameter_renamings": 261,
+    "small_classes": 172,
+    "small_members": 458,
+    "up_to_global_phase_classes": 1356,
+    "up_to_global_phase_members": 3516,
+    "up_to_global_phase_independent_bidirectional_rules": 2160,
+    "up_to_global_phase_symbolic_classes": 187,
+    "exact_unitary_classes": 1235,
+    "exact_unitary_members": 3201,
+    "exact_unitary_independent_bidirectional_rules": 1966,
+    "exact_unitary_symbolic_classes": 186,
+    "excluded_records": 76
+  },
+  "excluded_reasons": {
+    "parameter_arithmetic_not_supported_by_interface": 60,
+    "unsupported gate cu1": 1,
+    "unsupported gate rccx": 1,
+    "unsupported gate r": 3,
+    "unsupported gate ecr": 5,
+    "unsupported gate dcx": 2,
+    "unsupported gate cu": 1,
+    "unsupported gate ccz": 1,
+    "angle outside zeta_16 field: pi/8": 1,
+    "unsupported gate rc3x": 1
+  },
+  "build_seconds": 2.7870732080000002,
+  "artifacts": {
+    "classes.phase.json": "cbbfd7c97b2506d160cd99de96f3daea1c53748c333954e22f40232b5725e804",
+    "classes.phase.small.json": "bbff4fd8a020054a316aad47a1427babf6843c04019a0157e617ca8908470704",
+    "classes.exact.json": "e1ffa9a8a69feeb0068eaa5ab1087a5d0b28a1c0aedc90b0f6c2819f6e40a5ef",
+    "rules.jsonl": "99049776b02b1d506744c7b7c48a1b4666570c01d4d3f60fdc04e2e30b708a3f",
+    "catalog.md": "07e579c7a480889cb63f17c2ac1f6956ba5dd4cab0a753e9ff33a938340ed1e1",
+    "provenance.json": "bbf6f6266531e4928018074d4f22879fa6588ba8c1ecba17f56e4f6047355c87",
+    "excluded.jsonl": "6b87d7724de27615c8231466b778db31bd7beec628978e908245949d2dff3451"
+  }
+}

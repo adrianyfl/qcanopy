@@ -1,0 +1,20 @@
+{
+  "schema": "qdag/1",
+  "num_qubits": 3,
+  "global_phase": 0.125,
+  "nodes": [
+    {"id": "h0", "op": "h", "qubits": [0]},
+    {"id": "entangle", "op": "cx", "qubits": [0, 2]},
+    {"id": "s01", "op": "swap", "qubits": [0, 1]},
+    {"id": "s12", "op": "swap", "qubits": [1, 2]},
+    {"id": "tail", "op": "cx", "qubits": [0, 2]}
+  ],
+  "edges": [
+    {"source": "h0", "target": "entangle", "qubit": 0},
+    {"source": "entangle", "target": "s01", "qubit": 0},
+    {"source": "s01", "target": "s12", "qubit": 1},
+    {"source": "entangle", "target": "s12", "qubit": 2},
+    {"source": "s01", "target": "tail", "qubit": 0},
+    {"source": "s12", "target": "tail", "qubit": 2}
+  ]
+}

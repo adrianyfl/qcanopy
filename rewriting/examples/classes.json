@@ -1,0 +1,179 @@
+{
+  "schema": "qclass-library/1",
+  "equivalence": "exact_unitary",
+  "classes": [
+    {
+      "id": "X",
+      "num_qubits": 1,
+      "members": [
+        {
+          "id": "x",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "nodes": [
+              {
+                "id": "x",
+                "op": "x",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": []
+          }
+        },
+        {
+          "id": "hzh",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "nodes": [
+              {
+                "id": "h1",
+                "op": "h",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              },
+              {
+                "id": "z",
+                "op": "z",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              },
+              {
+                "id": "h2",
+                "op": "h",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": [
+              {
+                "source": "h1",
+                "target": "z",
+                "qubit": 0
+              },
+              {
+                "source": "z",
+                "target": "h2",
+                "qubit": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "H",
+      "num_qubits": 1,
+      "members": [
+        {
+          "id": "h",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "nodes": [
+              {
+                "id": "h",
+                "op": "h",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "Z",
+      "num_qubits": 1,
+      "members": [
+        {
+          "id": "z",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "nodes": [
+              {
+                "id": "z",
+                "op": "z",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "CX",
+      "num_qubits": 2,
+      "members": [
+        {
+          "id": "cx",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 2,
+            "nodes": [
+              {
+                "id": "cx",
+                "op": "cx",
+                "qubits": [
+                  0,
+                  1
+                ],
+                "params": []
+              }
+            ],
+            "edges": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "RZ",
+      "num_qubits": 1,
+      "parameters": [
+        "theta"
+      ],
+      "members": [
+        {
+          "id": "rz",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "nodes": [
+              {
+                "id": "rz",
+                "op": "rz",
+                "qubits": [
+                  0
+                ],
+                "params": [
+                  {
+                    "var": "theta"
+                  }
+                ]
+              }
+            ],
+            "edges": []
+          }
+        }
+      ]
+    }
+  ]
+}

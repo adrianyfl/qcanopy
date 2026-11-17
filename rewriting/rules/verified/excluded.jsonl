@@ -1,0 +1,76 @@
+{"class":"506_3","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--eccset--Nam_5_3_complete_ECC_set.json"}
+{"class":"0_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"0_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"1_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"1_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"2_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"2_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"5_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"5_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"6_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"6_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"7_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"7_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"8_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"8_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"9_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"9_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"10_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"10_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"16_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"16_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"17_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"17_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"52_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"52_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"53_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"53_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"54_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"54_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"55_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"55_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"90_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"90_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"91_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"91_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"92_2","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"92_2","member":1,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"class":"96_3","member":0,"reason":"parameter_arithmetic_not_supported_by_interface","source":"quartz--experiment--ecc_set--rigetti_4_ecc.json"}
+{"line":215,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":247,"reason":"unsupported gate cu1","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":269,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":309,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":394,"reason":"unsupported gate rccx","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":440,"reason":"unsupported gate r","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":459,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":496,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":526,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":701,"reason":"unsupported gate r","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":742,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":818,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":974,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1019,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1093,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1193,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1277,"reason":"unsupported gate ecr","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1306,"reason":"unsupported gate ecr","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1327,"reason":"unsupported gate ecr","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1569,"reason":"unsupported gate ecr","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1794,"reason":"unsupported gate dcx","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1813,"reason":"unsupported gate dcx","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":1976,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2032,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2125,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2184,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2225,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2298,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2348,"reason":"unsupported gate cu","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2523,"reason":"unsupported gate ecr","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2866,"reason":"unsupported gate ccz","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2929,"reason":"unsupported gate r","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":2961,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":3015,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":3059,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":3113,"reason":"parameter_arithmetic_not_supported_by_interface","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":3165,"reason":"angle outside zeta_16 field: pi/8","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}
+{"line":3249,"reason":"unsupported gate rc3x","source":"qiskit--crates--transpiler--src--standard_equivalence_library.rs"}

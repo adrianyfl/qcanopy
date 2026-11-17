@@ -1,0 +1,39 @@
+{
+  "method": "exact cyclotomic Laurent-polynomial matrix comparison and gate unitarity",
+  "numeric_tolerance": null,
+  "results": [
+    {
+      "file": "classes.phase.json",
+      "equivalence": "up_to_global_phase",
+      "sha256": "cbbfd7c97b2506d160cd99de96f3daea1c53748c333954e22f40232b5725e804",
+      "member_checks": {
+        "exact": 3284,
+        "classes": 1356,
+        "projective": 232
+      },
+      "unitary_gate_instances_checked": 60
+    },
+    {
+      "file": "classes.exact.json",
+      "equivalence": "exact_unitary",
+      "sha256": "e1ffa9a8a69feeb0068eaa5ab1087a5d0b28a1c0aedc90b0f6c2819f6e40a5ef",
+      "member_checks": {
+        "exact": 3201,
+        "classes": 1235
+      },
+      "unitary_gate_instances_checked": 56
+    },
+    {
+      "file": "classes.phase.small.json",
+      "equivalence": "up_to_global_phase",
+      "sha256": "bbff4fd8a020054a316aad47a1427babf6843c04019a0157e617ca8908470704",
+      "member_checks": {
+        "exact": 412,
+        "classes": 172,
+        "projective": 46
+      },
+      "unitary_gate_instances_checked": 51
+    }
+  ],
+  "elapsed_seconds": 0.90546225
+}

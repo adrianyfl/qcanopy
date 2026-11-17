@@ -1,0 +1,16 @@
+{
+  "schema": "qdag/1",
+  "num_qubits": 1,
+  "global_phase": 0,
+  "nodes": [
+    {
+      "id": "g0",
+      "op": "s",
+      "qubits": [
+        0
+      ],
+      "params": []
+    }
+  ],
+  "edges": []
+}

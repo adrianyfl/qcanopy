@@ -1,0 +1,138 @@
+{
+  "schema": "qclass-library/1",
+  "equivalence": "exact_unitary",
+  "classes": [
+    {
+      "id": "cancel_x",
+      "num_qubits": 1,
+      "parameters": [],
+      "members": [
+        {
+          "id": "id",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "global_phase": 0,
+            "nodes": [
+              {
+                "id": "g0",
+                "op": "id",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": []
+          }
+        },
+        {
+          "id": "xx",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "global_phase": 0,
+            "nodes": [
+              {
+                "id": "g0",
+                "op": "x",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              },
+              {
+                "id": "g1",
+                "op": "x",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": [
+              {
+                "source": "g0",
+                "target": "g1",
+                "qubit": 0
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "commute",
+      "num_qubits": 1,
+      "parameters": [],
+      "members": [
+        {
+          "id": "hx",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "global_phase": 0,
+            "nodes": [
+              {
+                "id": "g0",
+                "op": "h",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              },
+              {
+                "id": "g1",
+                "op": "x",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": [
+              {
+                "source": "g0",
+                "target": "g1",
+                "qubit": 0
+              }
+            ]
+          }
+        },
+        {
+          "id": "zh",
+          "dag": {
+            "schema": "qdag/1",
+            "num_qubits": 1,
+            "global_phase": 0,
+            "nodes": [
+              {
+                "id": "g0",
+                "op": "z",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              },
+              {
+                "id": "g1",
+                "op": "h",
+                "qubits": [
+                  0
+                ],
+                "params": []
+              }
+            ],
+            "edges": [
+              {
+                "source": "g0",
+                "target": "g1",
+                "qubit": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

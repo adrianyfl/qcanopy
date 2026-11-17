@@ -1,0 +1,23 @@
+{
+  "schema": "qinverse-schemas/1",
+  "identity_class_id": "inverse.identity/v1",
+  "equivalence": "exact_unitary",
+  "fixed": {
+    "id": ["id", 1], "h": ["h", 1], "x": ["x", 1], "y": ["y", 1], "z": ["z", 1],
+    "s": ["sdg", 1], "sdg": ["s", 1], "t": ["tdg", 1], "tdg": ["t", 1],
+    "sx": ["sxdg", 1], "sxdg": ["sx", 1],
+    "cx": ["cx", 2], "cy": ["cy", 2], "cz": ["cz", 2], "ch": ["ch", 2],
+    "cs": ["csdg", 2], "csdg": ["cs", 2], "csx": ["csxdg", 2], "csxdg": ["csx", 2],
+    "swap": ["swap", 2], "iswap": ["iswapdg", 2], "iswapdg": ["iswap", 2],
+    "ccx": ["ccx", 3], "cswap": ["cswap", 3]
+  },
+  "negate_angle": {
+    "rx": 1, "ry": 1, "rz": 1, "p": 1,
+    "crx": 2, "cry": 2, "crz": 2, "cp": 2,
+    "rxx": 2, "ryy": 2, "rzz": 2, "rzx": 2
+  },
+  "u": {"arity": 1, "inverse_parameters": ["-theta", "-lambda", "-phi"]},
+  "group_law": "dagger(G1 ... Gk) = dagger(Gk) ... dagger(G1)",
+  "application": "Only cancel inverse gates adjacent on every ordered operand wire in the current reduced DAG. Repeated cancellation proves group inverses without enumerating groups.",
+  "unsupported": "No guessed inverse for an unknown or opaque matrix gate. No tolerance, angle snapping or periodic equivalence."
+}
