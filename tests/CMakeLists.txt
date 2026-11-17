@@ -8,6 +8,7 @@ function(qcanopy_add_test name source)
 endfunction()
  
 qcanopy_add_test(test_ir_header cpp/test_ir_header.cpp qcanopy::ir)
+qcanopy_add_test(test_lexer cpp/test_lexer.cpp qcanopy::parser)
 qcanopy_add_test(test_normalize cpp/test_normalize.cpp qcanopy::rewrite)
 qcanopy_add_test(test_generator cpp/test_generator.cpp qcanopy::generator)
 qcanopy_add_test(test_dataset_io cpp/test_dataset_io.cpp qcanopy::generator)
