@@ -1,12 +1,16 @@
 # QCanopy: Batched, Reuse-Aware GPU Simulation for Large-Scale Quantum Circuit Equivalence Checking
 
 QCanopy provides a quantum circuit IR and dependency DAG, normalization and
-prefix/suffix peeling passes, and a deterministic circuit-pair generator.
+prefix/suffix peeling passes, a deterministic circuit-pair generator, and a
+parser for the generator's QASM files.
 `qcanopy_generate` creates labeled equivalent and non-equivalent pairs for
 equivalence-checker tests and experiments on shared computation.
+`qcanopy_parse` and the `qcanopy::parser` library read those QASM files back
+into the IR.
 
 **New users:** follow the [test-case generator quick start](docs/generator_quickstart.md)
-to build the tool, generate a dataset, and understand its files.
+to build the tool, generate a dataset, and understand its files, then the
+[parser quick start](docs/parser_quickstart.md) to read the dataset back.
 
 ## Build
 
@@ -40,6 +44,26 @@ status, and raw/normalized sharing measurements. Both formats represent the
 same cases when generation arguments match. Each output directory must be absent
 or empty.
 
+## Parse a generated dataset
+
+```sh
+./build/src/parser/qcanopy_parse generated/quickstart-qasm/cases/*.qasm
+```
+
+This prints the qubit count, gate count, and global phase of each circuit, then
+`parsed 64 of 64 files`. From C++, include `qcanopy/parser.hpp` and link
+`qcanopy::parser`:
+
+```cpp
+qcanopy::Circuit    c   = qcanopy::parse_qasm_file("generated/quickstart-qasm/cases/case-000000.a.qasm");
+qcanopy::CircuitDAG dag = qcanopy::parse_qasm_file_dag("generated/quickstart-qasm/cases/case-000000.a.qasm");
+```
+
+The parser accepts QASM 3.0 as the generator writes it, plus comments and
+arithmetic such as `pi/2`. It does not read QASM 2.0 files, gates outside the
+generator's set, or circuits with more than 32 qubits. Errors are reported as
+`file:line:column: message`.
+
 ## Generator capabilities
 
 - Select portable JSON IR v1 or OpenQASM 3.0 output with `--format ir|qasm`.
@@ -60,6 +84,8 @@ prefix does not establish circuit equivalence.
   output files, verification, and common errors.
 - [Generator reference](docs/test_case_generator.md): complete CLI contract,
   constructions, reproducibility, serialization schemas, and C++ API.
+- [Parser quick start](docs/parser_quickstart.md): parsing generated datasets,
+  the C++ calls, accepted input, how parsed circuits relate to IR files, and errors.
 - [Peeling algorithm](src/rewrite/algorithm.md): matching prefix/suffix removal.
 
 Datasets written under `generated/` are Git-ignored. Generate them locally rather
