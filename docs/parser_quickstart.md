@@ -1,6 +1,6 @@
 # Parser quick start
 
-The parser reads the QASM 3.0 files written by `qcanopy_generate --format qasm`
+The parser reads the OpenQASM 3.0 files written by `qcanopy_generate --format qasm`
 and returns each circuit as a `Circuit` or a `CircuitDAG`, ready for the rewrite
 passes, the simulator, and the equivalence checker. This page covers the
 command-line check, the C++ calls, the accepted input, and how parsed circuits
@@ -109,12 +109,13 @@ The parser accepts what the generator writes, plus comments and arithmetic:
 - The gates `id h x y z s sdg t tdg rx ry rz p U cx cz swap`, applied to
   `name[i]`.
 - Arguments built from numbers, `pi`, parentheses, unary `-`, and `+ - * /`.
-  All arithmetic is real, so `1/2` is 0.5.
+  All arithmetic is real, so `1/2` is 0.5. (OpenQASM 3 divides two integers as
+  integers, giving 0; that rule is not implemented.)
 - `//` and `/* */` comments.
 
 Everything else is rejected with an error, including:
 
-- QASM 2.0 files (`OPENQASM 2.0;`, `qreg`, `qelib1.inc`).
+- OpenQASM 2.0 files (`OPENQASM 2.0;`, `qreg`, `qelib1.inc`).
 - Any other gate, such as `sx` or `ccx`, and `gate` definitions.
 - A second register, an unsized `qubit q;`, or more than 32 qubits.
 - `measure`, `reset`, `barrier`, and classical declarations.
@@ -154,7 +155,7 @@ file. A file that cannot be opened throws `std::runtime_error` instead.
 
 | Message | Cause |
 | --- | --- |
-| `unsupported version '2.0'; only 3.0 is supported` | A QASM 2.0 file |
+| `unsupported version '2.0'; only 3.0 is supported` | An OpenQASM 2.0 file |
 | `gate 'h' is not defined; include "stdgates.inc" first` | Missing include line |
 | `unknown gate or statement 'ccx'` | A gate or statement outside the list in step 4 |
 | `expected ';' but found 'q'` | Usually a missing comma between operands |

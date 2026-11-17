@@ -1,10 +1,10 @@
-// qcanopy/parser.hpp — circuit source parser.
+// qcanopy/parser.hpp — parser for OpenQASM 3.0 circuit files.
 //
 // Errors in the source text are reported as ParseError, which carries the 1-based line and
 // column where the problem starts. what() reads "line:column: message".
 //
-// 1. Accepted source, in this order:
-//      version header, 3.0                 required, first
+// 1. Accepted source is a subset of OpenQASM 3.0, in this order:
+//      OPENQASM 3.0;                       required, first
 //      include "stdgates.inc";             required before any gate other than U
 //      qubit[n] name;                      exactly one register, 1 <= n <= kMaxQubits
 //    followed by any number of
@@ -17,13 +17,14 @@
 // 2. Gates are added in source order, and operand order is kept: for cx the first operand
 //    is the control (ir.hpp, point 3).
 //
-// 3. Every gate maps to the IR gate with the same matrix except U: the source's
+// 3. Every gate maps to the IR gate with the same matrix except U: OpenQASM 3's built-in
 //    U(theta, phi, lambda) is e^{i theta/2} times the IR's phase-free U, so it becomes a
 //    U gate plus theta/2 of global phase.
 //
 // 4. A constant expression is built from numeric literals, the constant pi, parentheses,
 //    unary '-', and the operators * / and + - with their usual precedence. Everything is
-//    evaluated as a real, so 1/2 is 0.5.
+//    evaluated as a real, so 1/2 is 0.5. (OpenQASM 3 divides two integers as integers,
+//    giving 0; that rule is not implemented.)
 
 #pragma once
 

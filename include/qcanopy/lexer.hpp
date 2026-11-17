@@ -1,4 +1,4 @@
-// qcanopy/lexer.hpp — first stage of the parser: splits circuit source text into tokens
+// qcanopy/lexer.hpp — first stage of the parser: splits OpenQASM source text into tokens
 // (names, numbers, strings, punctuation) so the parser never looks at raw characters.
 // To read a circuit, use parse_qasm (qcanopy/parser.hpp) rather than the lexer directly.
 //

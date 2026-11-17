@@ -2,10 +2,10 @@
 
 QCanopy provides a quantum circuit IR and dependency DAG, normalization and
 prefix/suffix peeling passes, a deterministic circuit-pair generator, and a
-parser for the generator's QASM files.
+parser for the generator's OpenQASM 3.0 files.
 `qcanopy_generate` creates labeled equivalent and non-equivalent pairs for
 equivalence-checker tests and experiments on shared computation.
-`qcanopy_parse` and the `qcanopy::parser` library read those QASM files back
+`qcanopy_parse` and the `qcanopy::parser` library read those files back
 into the IR.
 
 **New users:** follow the [test-case generator quick start](docs/generator_quickstart.md)
@@ -59,8 +59,8 @@ qcanopy::Circuit    c   = qcanopy::parse_qasm_file("generated/quickstart-qasm/ca
 qcanopy::CircuitDAG dag = qcanopy::parse_qasm_file_dag("generated/quickstart-qasm/cases/case-000000.a.qasm");
 ```
 
-The parser accepts QASM 3.0 as the generator writes it, plus comments and
-arithmetic such as `pi/2`. It does not read QASM 2.0 files, gates outside the
+The parser accepts OpenQASM 3.0 as the generator writes it, plus comments and
+arithmetic such as `pi/2`. It does not read OpenQASM 2.0 files, gates outside the
 generator's set, or circuits with more than 32 qubits. Errors are reported as
 `file:line:column: message`.
 

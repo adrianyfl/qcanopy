@@ -1,4 +1,4 @@
-// qcanopy_parse — parses circuit files and reports what was read from each.
+// qcanopy_parse — parses OpenQASM 3.0 files and reports what was read from each.
 
 #include "qcanopy/parser.hpp"
 
@@ -9,7 +9,7 @@
 namespace {
     const char* help =
         "qcanopy_parse FILE...\n"
-        "Parse each circuit file and print its qubit count, gate count and global phase.\n"
+        "Parse each OpenQASM 3.0 file and print its qubit count, gate count and global phase.\n"
         "A file that cannot be read or parsed is reported on stderr; parse errors read\n"
         "FILE:LINE:COLUMN: message.\n"
         "Exit status: 0 if every file parsed, 1 if any failed, 2 if no file was given.\n";
