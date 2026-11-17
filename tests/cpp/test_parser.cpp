@@ -285,7 +285,7 @@ namespace {
     void test_header_errors() {
         CHECK(fails_at("", 1, 1));
         CHECK(fails_at("qubit[2] q;", 1, 1));                               // no version
-        CHECK(fails_at("OPENQASM 2.0;\nqreg q[2];", 1, 10));
+        CHECK(fails_at("OPENQASM 1.0;", 1, 10));
         CHECK(fails_at("OPENQASM 3.1;", 1, 10));
         CHECK(fails_at("OPENQASM;", 1, 9));
         CHECK(fails_at("OPENQASM 3.0\nqubit[2] q;", 2, 1));                 // missing ';'
@@ -345,8 +345,141 @@ namespace {
         CHECK(body_fails_at("rz(1e) q[0];", 4, 4));
     }
 
+    // ---- OpenQASM 2.0 ----
+
+    // Three lines, so a body appended to it starts on line 4.
+    const std::string kHeader2 = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[3];\n";
+
+    // A program in the layout of the benchmark circuits: a leading comment, two quantum
+    // registers, an unused classical register, and angles written with pi.
+    void test_qasm2_program() {
+        const Circuit c = parse_qasm(
+            "// Used Gate Set: ['rz', 'rx', 'x', 'cx']\n"
+            "OPENQASM 2.0;\n"
+            "include \"qelib1.inc\";\n"
+            "qreg q[2];\n"
+            "qreg flag[1];\n"
+            "creg c[2];\n"
+            "s q[0];\n"
+            "rx(pi/2) q[0];\n"
+            "rz(-3*pi/2) q[1];\n"
+            "x flag[0];\n"
+            "cx q[1],flag[0];\n"
+            "cz q[0], q[1];\n");
+        validate(c);
+        CHECK(c.n == 3);
+        CHECK(c.global_phase == 0.0);               // parser.hpp, point 3: rz adds no phase
+        CHECK(c.size() == 6);
+        if (c.size() != 6) return;
+        CHECK(is_gate(c.gates[0], make_gate(K::S, 0)));
+        CHECK(is_gate(c.gates[1], make_gate(K::RX, 0, {kPi / 2, 0, 0})));
+        CHECK(is_gate(c.gates[2], make_gate(K::RZ, 1, {-3 * kPi / 2, 0, 0})));
+        CHECK(is_gate(c.gates[3], make_gate(K::X, 2)));         // flag[0] follows q[0..1]
+        CHECK(is_gate(c.gates[4], make_gate(K::CX, 1, 2)));
+        CHECK(is_gate(c.gates[5], make_gate(K::CZ, 0, 1)));
+    }
+
+    void test_qasm2_gates() {
+        struct Case {
+            const char* source;
+            Gate want;
+        };
+        const std::vector<Case> cases = {
+            {"id q[1];",        make_gate(K::I, 1)},
+            {"x q[1];",         make_gate(K::X, 1)},
+            {"y q[1];",         make_gate(K::Y, 1)},
+            {"z q[1];",         make_gate(K::Z, 1)},
+            {"h q[1];",         make_gate(K::H, 1)},
+            {"s q[1];",         make_gate(K::S, 1)},
+            {"sdg q[1];",       make_gate(K::Sdg, 1)},
+            {"t q[1];",         make_gate(K::T, 1)},
+            {"tdg q[1];",       make_gate(K::Tdg, 1)},
+            {"rx(0.25) q[1];",  make_gate(K::RX, 1, {0.25, 0, 0})},
+            {"rz(0.25) q[1];",  make_gate(K::RZ, 1, {0.25, 0, 0})},
+            {"cx q[2],q[0];",   make_gate(K::CX, 2, 0)},
+            {"cz q[2],q[0];",   make_gate(K::CZ, 2, 0)},
+        };
+        for (const Case& k : cases) {
+            const Circuit c = parse_qasm(kHeader2 + k.source);
+            validate(c);
+            const bool ok = c.n == 3 && c.size() == 1 && is_gate(c.gates[0], k.want) && c.global_phase == 0.0;
+            if (!ok) std::printf("2.0 gate case failed: %s\n", k.source);
+            CHECK(ok);
+        }
+    }
+
+    // parser.hpp, point 2: registers are numbered end to end in declaration order.
+    void test_qasm2_registers() {
+        const std::string head = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\n";
+
+        const Circuit c = parse_qasm(head + "qreg a[2];\nqreg b[3];\nqreg c[1];\n"
+                                            "x a[1]; x b[0]; x b[2]; x c[0]; cx c[0],a[0];");
+        CHECK(c.n == 6 && c.size() == 5);
+        if (c.size() == 5) {
+            CHECK(c.gates[0].q[0] == 1);
+            CHECK(c.gates[1].q[0] == 2);
+            CHECK(c.gates[2].q[0] == 4);
+            CHECK(c.gates[3].q[0] == 5);
+            CHECK(is_gate(c.gates[4], make_gate(K::CX, 5, 0)));
+        }
+
+        // A register may be declared after gates have used earlier ones.
+        const Circuit late = parse_qasm(head + "qreg a[1];\nx a[0];\nqreg b[1];\ncx a[0],b[0];");
+        CHECK(late.n == 2 && late.size() == 2);
+
+        // Classical registers do not count as qubits, wherever they appear.
+        const Circuit classical = parse_qasm(head + "creg m[5];\nqreg q[2];\ncreg n[2];\nh q[1];");
+        CHECK(classical.n == 2 && classical.size() == 1);
+
+        // The registers together may use every qubit the IR allows.
+        const Circuit full = parse_qasm(head + "qreg a[16];\nqreg b[16];\nx b[15];");
+        validate(full);
+        CHECK(full.n == 32 && full.gates[0].q[0] == 31);
+
+        CHECK(parse_qasm("OPENQASM 2.0;\nqreg q[2];").size() == 0);
+    }
+
+    void test_qasm2_errors() {
+        // Header and declarations.
+        CHECK(fails_at("OPENQASM 2.0;\ninclude \"stdgates.inc\";", 2, 9));     // 3.0's library
+        CHECK(fails_at("OPENQASM 2.0;\nqreg q[1];\nh q[0];", 3, 1));           // h before the include
+        CHECK(fails_at("OPENQASM 2.0;\ninclude \"qelib1.inc\";\n", 3, 1));     // no register
+        CHECK(fails_at("OPENQASM 2.0;\nqreg q[0];", 2, 8));
+        CHECK(fails_at("OPENQASM 2.0;\nqreg q[33];", 2, 8));
+        CHECK(fails_at("OPENQASM 2.0;\nqreg a[20];\nqreg b[13];", 3, 8));      // 33 qubits in total
+        CHECK(fails_at("OPENQASM 2.0;\nqreg q[2];\nqreg q[2];", 3, 6));        // same name twice
+        CHECK(fails_at("OPENQASM 2.0;\nqreg [2] q;", 2, 6));
+        CHECK(fails_at("OPENQASM 2.0;\nqreg q;", 2, 7));
+        CHECK(fails_at("OPENQASM 2.0;\nqreg q[1];\ncreg c;", 3, 7));
+
+        // Each version keeps its own declaration syntax.
+        CHECK(fails_at("OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqubit[2] q;", 3, 1));
+        CHECK(fails_at("OPENQASM 3.0;\ninclude \"stdgates.inc\";\nqreg q[2];", 3, 1));
+
+        // Gates and statements outside the 2.0 list.
+        CHECK(fails_at(kHeader2 + "ccx q[0],q[1],q[2];", 4, 1));
+        CHECK(fails_at(kHeader2 + "ry(1) q[0];", 4, 1));
+        CHECK(fails_at(kHeader2 + "U(0,0,0) q[0];", 4, 1));
+        CHECK(fails_at(kHeader2 + "gphase(1);", 4, 1));
+
+        // Operands.
+        CHECK(fails_at(kHeader2 + "x q[3];", 4, 5));
+        CHECK(fails_at(kHeader2 + "x r[0];", 4, 3));
+        CHECK(fails_at(kHeader2 + "cx q[0] q[1];", 4, 9));                     // missing ','
+        const std::string two = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\nqreg flag[1];\n";
+        CHECK(fails_at(two + "x flag[1];", 5, 8));
+
+        CHECK(error_of(two + "x flag[1];") == "5:8: qubit index 1 is out of range for register 'flag' of size 1");
+        CHECK(error_of("OPENQASM 2.0;\nqreg q[1];\nh q[0];") ==
+              "3:1: gate 'h' is not defined; include \"qelib1.inc\" first");
+        CHECK(error_of("OPENQASM 2.0;\nqreg a[20];\nqreg b[13];") ==
+              "3:8: circuit would have more than 32 qubits");
+        CHECK(error_of("OPENQASM 2.0;\nqreg q[2];\nqreg q[2];") == "3:6: register 'q' is already declared");
+        CHECK(error_of(kHeader2 + "ccx q[0],q[1],q[2];") == "4:1: unknown gate or statement 'ccx'");
+    }
+
     void test_messages() {
-        CHECK(error_of("OPENQASM 2.0;") == "1:10: unsupported version '2.0'; only 3.0 is supported");
+        CHECK(error_of("OPENQASM 4.0;") == "1:10: unsupported version '4.0'; only 2.0 and 3.0 are supported");
         CHECK(error_of(kHeader + "cx q[0] q[1];") == "4:9: expected ';' but found 'q'");
         CHECK(error_of(kHeader + "h q[0]") == "4:7: expected ';' but found end of input");
         CHECK(error_of(kHeader + "h q[3];") == "4:5: qubit index 3 is out of range for register 'q' of size 3");
@@ -371,6 +504,10 @@ int main() {
     test_dag();
     test_header_errors();
     test_gate_errors();
+    test_qasm2_program();
+    test_qasm2_gates();
+    test_qasm2_registers();
+    test_qasm2_errors();
     test_messages();
     if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
     std::printf("all parser tests passed\n");

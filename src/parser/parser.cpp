@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace qcanopy {
 
@@ -21,10 +22,11 @@ namespace qcanopy {
         struct GateSpec {
             std::string_view name;
             GateKind kind;
-            bool builtin;       // defined by the language itself, not by stdgates.inc
+            bool builtin;       // defined by the language itself, not by an included library
         };
 
-        constexpr GateSpec kGates[] = {
+        // OpenQASM 3.0: U is built in, the rest come from stdgates.inc.
+        constexpr GateSpec kGates3[] = {
             {"U",    GateKind::U,    true},
             {"id",   GateKind::I,    false},
             {"h",    GateKind::H,    false},
@@ -44,11 +46,36 @@ namespace qcanopy {
             {"swap", GateKind::SWAP, false},
         };
 
-        const GateSpec* find_gate(std::string_view name) {
-            for (const GateSpec& g : kGates)
+        // OpenQASM 2.0: gates from qelib1.inc (parser.hpp, point 3).
+        constexpr GateSpec kGates2[] = {
+            {"id",   GateKind::I,    false},
+            {"x",    GateKind::X,    false},
+            {"y",    GateKind::Y,    false},
+            {"z",    GateKind::Z,    false},
+            {"h",    GateKind::H,    false},
+            {"s",    GateKind::S,    false},
+            {"sdg",  GateKind::Sdg,  false},
+            {"t",    GateKind::T,    false},
+            {"tdg",  GateKind::Tdg,  false},
+            {"rx",   GateKind::RX,   false},
+            {"rz",   GateKind::RZ,   false},
+            {"cx",   GateKind::CX,   false},
+            {"cz",   GateKind::CZ,   false},
+        };
+
+        template <std::size_t N>
+        const GateSpec* find_in(const GateSpec (&table)[N], std::string_view name) {
+            for (const GateSpec& g : table)
                 if (g.name == name) return &g;
             return nullptr;
         }
+
+        // A qubit register: qubits offset .. offset + size - 1 of the circuit.
+        struct Register {
+            std::string_view name;
+            int offset;
+            int size;
+        };
 
         constexpr double kPi = 3.14159265358979323846;
 
@@ -74,7 +101,7 @@ namespace qcanopy {
             Circuit parse() {
                 version();
                 while (tok_.kind != TokenKind::End) statement();
-                if (!declared_) fail(tok_, "no qubit register declared");
+                if (registers_.empty()) fail(tok_, "no qubit register declared");
                 return std::move(circuit_);
             }
 
@@ -103,12 +130,15 @@ namespace qcanopy {
 
             void version() {
                 if (tok_.kind != TokenKind::Identifier || tok_.text != "OPENQASM")
-                    fail(tok_, "expected the version statement 'OPENQASM 3.0;' but found " + describe(tok_));
+                    fail(tok_, "expected a version statement such as 'OPENQASM 3.0;' but found " +
+                               describe(tok_));
                 advance();
                 if (tok_.kind != TokenKind::Integer && tok_.kind != TokenKind::Float)
                     fail(tok_, "expected a version number but found " + describe(tok_));
-                if (tok_.text != "3.0" && tok_.text != "3")
-                    fail(tok_, "unsupported version " + quoted(tok_.text) + "; only 3.0 is supported");
+                if (tok_.text == "2.0")
+                    v2_ = true;
+                else if (tok_.text != "3.0" && tok_.text != "3")
+                    fail(tok_, "unsupported version " + quoted(tok_.text) + "; only 2.0 and 3.0 are supported");
                 advance();
                 expect(TokenKind::Semicolon, "';'");
             }
@@ -119,35 +149,67 @@ namespace qcanopy {
                 if (tok_.text == "OPENQASM")
                     fail(tok_, "the version statement must come first and appear only once");
                 if (tok_.text == "include") return include();
-                if (tok_.text == "qubit") return declaration();
-                if (tok_.text == "gphase") return gphase();
+                if (v2_) {
+                    if (tok_.text == "qreg") return declaration();
+                    if (tok_.text == "creg") return classical_register();
+                } else {
+                    if (tok_.text == "qubit") return declaration();
+                    if (tok_.text == "gphase") return gphase();
+                }
                 gate();
             }
+
+            // The one gate library each version may include.
+            std::string_view library() const { return v2_ ? "qelib1.inc" : "stdgates.inc"; }
 
             void include() {
                 advance();
                 const Token file = expect(TokenKind::String, "a file name in double quotes");
-                if (file.text != "stdgates.inc")
-                    fail(file, "cannot include \"" + std::string(file.text) +
-                               "\"; only \"stdgates.inc\" is supported");
+                if (file.text != library())
+                    fail(file, "cannot include \"" + std::string(file.text) + "\"; only \"" +
+                               std::string(library()) + "\" is supported");
                 expect(TokenKind::Semicolon, "';'");
-                stdgates_ = true;
+                included_ = true;
             }
 
+            // "qubit[n] name;" in 3.0, "qreg name[n];" in 2.0.
             void declaration() {
                 const Token keyword = advance();
-                if (declared_) fail(keyword, "only one qubit register is supported");
+                if (!v2_ && !registers_.empty()) fail(keyword, "only one qubit register is supported");
+
+                Token name, size;
+                if (v2_) name = expect(TokenKind::Identifier, "a register name");
                 expect(TokenKind::LBracket, "'['");
-                const Token size = expect(TokenKind::Integer, "a register size");
-                const unsigned long long n = integer(size);
-                if (n < 1 || n > static_cast<unsigned long long>(kMaxQubits))
-                    fail(size, "register size " + std::string(size.text) + " is outside [1, " +
-                               std::to_string(kMaxQubits) + "]");
+                size = expect(TokenKind::Integer, "a register size");
                 expect(TokenKind::RBracket, "']'");
-                register_ = expect(TokenKind::Identifier, "a register name").text;
+                if (!v2_) name = expect(TokenKind::Identifier, "a register name");
                 expect(TokenKind::Semicolon, "';'");
-                circuit_.n = static_cast<int>(n);
-                declared_ = true;
+
+                const unsigned long long n = integer(size);
+                if (n < 1) fail(size, "a register needs at least 1 qubit");
+                if (n > static_cast<unsigned long long>(kMaxQubits - circuit_.n))
+                    fail(size, "circuit would have more than " + std::to_string(kMaxQubits) + " qubits");
+                if (find_register(name.text))
+                    fail(name, "register " + quoted(name.text) + " is already declared");
+
+                registers_.push_back(Register{name.text, circuit_.n, static_cast<int>(n)});
+                circuit_.n += static_cast<int>(n);
+            }
+
+            // "creg name[n];": classical bits are not used, so the statement is only checked.
+            void classical_register() {
+                advance();
+                expect(TokenKind::Identifier, "a register name");
+                expect(TokenKind::LBracket, "'['");
+                expect(TokenKind::Integer, "a register size");
+                expect(TokenKind::RBracket, "']'");
+                expect(TokenKind::Semicolon, "';'");
+            }
+
+            const Register* find_register(std::string_view name) const {
+                for (const Register& r : registers_)
+                    if (r.name == name) return &r;
+                return nullptr;
             }
 
             void gphase() {
@@ -160,10 +222,11 @@ namespace qcanopy {
 
             void gate() {
                 const Token name = advance();
-                const GateSpec* spec = find_gate(name.text);
+                const GateSpec* spec = v2_ ? find_in(kGates2, name.text) : find_in(kGates3, name.text);
                 if (!spec) fail(name, "unknown gate or statement " + quoted(name.text));
-                if (!spec->builtin && !stdgates_)
-                    fail(name, "gate " + quoted(name.text) + " is not defined; include \"stdgates.inc\" first");
+                if (!spec->builtin && !included_)
+                    fail(name, "gate " + quoted(name.text) + " is not defined; include \"" +
+                               std::string(library()) + "\" first");
                 const GateInfo& gi = info(spec->kind);
 
                 std::array<double, 3> params{0, 0, 0};
@@ -206,17 +269,17 @@ namespace qcanopy {
             }
 
             uint8_t qubit() {
-                const Token reg = expect(TokenKind::Identifier, "a qubit");
-                if (!declared_ || reg.text != register_)
-                    fail(reg, "undefined register " + quoted(reg.text));
+                const Token name = expect(TokenKind::Identifier, "a qubit");
+                const Register* reg = find_register(name.text);
+                if (!reg) fail(name, "undefined register " + quoted(name.text));
                 expect(TokenKind::LBracket, "'['");
                 const Token index = expect(TokenKind::Integer, "a qubit index");
                 const unsigned long long i = integer(index);
-                if (i >= static_cast<unsigned long long>(circuit_.n))
+                if (i >= static_cast<unsigned long long>(reg->size))
                     fail(index, "qubit index " + std::string(index.text) + " is out of range for register " +
-                                quoted(register_) + " of size " + std::to_string(circuit_.n));
+                                quoted(reg->name) + " of size " + std::to_string(reg->size));
                 expect(TokenKind::RBracket, "']'");
-                return static_cast<uint8_t>(i);
+                return static_cast<uint8_t>(reg->offset + static_cast<int>(i));
             }
 
             // A gate or gphase argument: a constant expression (parser.hpp, point 4).
@@ -291,9 +354,9 @@ namespace qcanopy {
             Lexer lexer_;
             Token tok_;                     // next unconsumed token
             Circuit circuit_;
-            std::string_view register_;     // name of the qubit register, once declared
-            bool declared_ = false;
-            bool stdgates_ = false;         // include "stdgates.inc" seen
+            std::vector<Register> registers_;   // in declaration order; circuit_.n is their total
+            bool v2_ = false;                   // the source is OpenQASM 2.0, not 3.0
+            bool included_ = false;             // the include of library() has been seen
         };
     }
 
