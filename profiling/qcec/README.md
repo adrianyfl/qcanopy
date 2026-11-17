@@ -43,7 +43,12 @@ Other commands:
 qcec_profile.py summary [RUN_DIR]     # print the terminal tables again (default: latest run)
 qcec_profile.py report  [RUN_DIR]     # re-render report.html (e.g. after editing the template)
 qcec_profile.py run --resume RUN_DIR  # finish an interrupted run, skipping completed checks
+progress_chart.py RUN_DIR             # heatmap of median check time per (qubits, gates); works mid-run
 ```
+
+`progress_chart.py` writes `RUN_DIR/progress_chart.html`. Options: `--strategy NAME` (default:
+the first strategy) and `--container NAME`, which shows an unfinished run as paused when that
+Docker container is not running.
 
 `run` options: `--jobs N` (concurrent checks, default 1), `--timeout S`, `--repeats N`,
 `--out DIR`, `--generator PATH`.
@@ -87,6 +92,14 @@ once a strategy reaches the threshold at N gates for a given qubit count, gate
 set, and other settings, its remaining checks at N gates and above are recorded
 as `skipped` instead of each waiting for the timeout. Skipping lasts across repeats.
 
+Out-of-memory failures have a matching rule, on by default: once a check runs out of
+memory at q qubits and N gates (the worker is killed with exit code -9, or reports an
+allocation failure), every check at more than q qubits and N gates is recorded as
+`skipped`. The remaining pairs at q qubits still run. Set
+`skip_higher_qubits_on_oom = false` to disable it. Both rules are rebuilt from
+`results.jsonl` on `--resume`. Run under a memory cap (e.g. `docker run --memory 14g
+--memory-swap 14g`) so only the worker is killed.
+
 Presets:
 
 | Sweep | Purpose |
@@ -95,6 +108,10 @@ Presets:
 | `scaling` | Qubits × gates growth for the default, alternating, and construction checkers |
 | `strategies` | Every checker at 10 qubits across gate pools and angle modes |
 | `large_gates` | 1k to 100k base gates (half-decade steps) at 8, 16, and 32 qubits |
+| `gate_scaling` | Simulation checker only, 100 to 10k gates at 4–20 qubits, 60 s timeout |
+| `gate_scaling_nolimit` | The same up to 32 qubits with no timeout; checks run until done or out of memory |
+
+Results of the last two are in [`results/`](results/README.md).
 
 ## Large gate counts
 

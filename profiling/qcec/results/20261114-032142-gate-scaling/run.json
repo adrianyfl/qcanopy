@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "sweep": {
+    "name": "gate-scaling",
+    "repeats": 1,
+    "timeout": 60.0,
+    "warmup": true,
+    "skip_after_timeouts": 2,
+    "generator": {
+      "qubits": [
+        4,
+        8,
+        12,
+        16,
+        20
+      ],
+      "gates": [
+        100,
+        300,
+        1000,
+        3000,
+        10000
+      ],
+      "pairs": 8,
+      "gate_set": "mixed",
+      "angle_mode": "mixed",
+      "prefix_fraction": 0.5,
+      "equivalent_fraction": 0.5,
+      "seed": 759
+    },
+    "strategies": {
+      "simulation": {
+        "run_alternating_checker": false,
+        "run_construction_checker": false,
+        "run_simulation_checker": true,
+        "run_zx_checker": false
+      }
+    },
+    "hard_timeout": 100.0
+  },
+  "sweep_file": "profiling/qcec/sweeps/gate_scaling.toml",
+  "started": "2026-11-14T03:21:42",
+  "versions": {
+    "mqt.qcec": "3.12.0",
+    "mqt.core": "3.12.0"
+  },
+  "host": {
+    "hostname": "534fca3dc2ad",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "logical_cpus": 16,
+    "memory_gb": 15.2,
+    "python": "3.12.16"
+  },
+  "git": {
+    "commit": "bfe229b838bdc55ad4220378fb736aaae2f68317",
+    "branch": "profile/mqt-qcec",
+    "dirty": true
+  },
+  "jobs": 1,
+  "generator": "/tmp/build/src/generator/qcanopy_generate",
+  "finished": "2026-11-14T03:34:54"
+}

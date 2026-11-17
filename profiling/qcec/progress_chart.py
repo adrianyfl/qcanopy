@@ -1,0 +1,352 @@
+"""Render an annotated heatmap of a qcec_profile run: median QCEC check time per
+(qubits, gates) point, plus failed (out of memory / timed out), skipped, running and
+pending status for the rest. Works on finished runs and on runs still in progress.
+
+usage: python progress_chart.py RUN_DIR [--strategy NAME] [--container NAME]
+       -> writes RUN_DIR/progress_chart.html
+
+--strategy   which sweep strategy to chart (default: the first one); repeat 0 only.
+--container  Docker container running the sweep. If given and not running, an unfinished
+             run is shown as paused instead of marking the next check as running.
+"""
+import argparse
+import collections
+import datetime as dt
+import json
+import statistics
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from qcec_profile import is_oom  # noqa: E402
+
+ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+ap.add_argument("run_dir", type=Path)
+ap.add_argument("--strategy")
+ap.add_argument("--container")
+args = ap.parse_args()
+
+run = args.run_dir
+meta = json.loads((run / "run.json").read_text())
+sweep = meta["sweep"]
+strategy = args.strategy or next(iter(sweep["strategies"]))
+if strategy not in sweep["strategies"]:
+    sys.exit(f"unknown strategy {strategy!r}; run has {list(sweep['strategies'])}")
+recs = [json.loads(l) for l in (run / "results.jsonl").read_text().splitlines() if l.strip()]
+recs = [r for r in recs if r["strategy"] == strategy and r["repeat"] == 0]
+gen = sweep["generator"]
+qubits, gates, pairs = gen["qubits"], gen["gates"], gen["pairs"]
+
+# Task order matches qcec_profile.py: datasets by ascending gates (stable over TOML qubit order), then cases.
+order = [(q, g, c) for g in sorted(gates) for q in qubits for c in range(pairs)]
+done = {(r["qubits"], r["gates"], int(r["case_id"].split("-")[1])): r for r in recs}
+running = next((t for t in order if t not in done), None)
+# With --container, only call the next unfinished check "running" if that container is up.
+active = True
+if args.container:
+    try:
+        active = bool(subprocess.run(["docker", "ps", "-q", "--filter", f"name=^{args.container}$"],
+                                     capture_output=True, text=True, timeout=20).stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass  # can't tell; assume it is running
+paused = running is not None and not active
+if paused:
+    running = None
+total, n_done = len(order), len(done)
+
+
+def med(xs):
+    xs = [x for x in xs if x is not None]
+    return statistics.median(xs) if xs else None
+
+
+cells = []
+for q in qubits:
+    for g in gates:
+        rs = [done[(q, g, c)] for c in range(pairs) if (q, g, c) in done]
+        ok = [r for r in rs if r["status"] == "ok" and r["outcome"] != "timeout"]
+        skipped = [r for r in rs if r["status"] == "skipped"]
+        oom = [r for r in rs if r not in ok and r not in skipped]  # failed: out of memory, timeout, error
+        kinds = collections.Counter("Out of memory" if is_oom(r) else
+                                    "Timed out" if r["outcome"] == "timeout" or r["status"] == "hard_timeout"
+                                    else "Failed" for r in oom)
+        reason = skipped[0].get("error", "") if skipped else ""
+        is_running = running is not None and running[:2] == (q, g)
+        pending = pairs - len(rs) - (1 if is_running else 0)
+        state = "done" if ok else "running" if is_running else "oom" if oom else "skipped" if skipped else "pending"
+        cells.append({
+            "q": q, "g": g, "state": state,
+            "sim": med([r.get("check_s") for r in ok]),
+            "sim_eq": med([r.get("check_s") for r in ok if r["expected"] == "equivalent"]),
+            "sim_neq": med([r.get("check_s") for r in ok if r["expected"] != "equivalent"]),
+            "opt": med([r.get("preprocessing_s") for r in ok]),
+            "ok": len(ok), "oom": len(oom), "skipped": len(skipped), "fail_kinds": dict(kinds),
+            "fail_label": kinds.most_common(1)[0][0] if kinds else None,
+            "skip_short": "out of memory above" if reason.startswith("out of memory") else
+                          "timed out at fewer gates" if reason.startswith("timed out") else "auto-skipped", "pending": pending, "running": is_running,
+            "wrong": sum(r["outcome"] == "incorrect" for r in ok),
+        })
+
+opts = sweep["strategies"][strategy]
+checkers = [k[len("run_"):-len("_checker")].replace("_", " ") for k, v in opts.items()
+            if k.startswith("run_") and k.endswith("_checker") and v]
+timeout = float(opts.get("timeout", sweep.get("timeout", 0)) or 0)
+opt_ts = [r["preprocessing_s"] for r in recs if r.get("preprocessing_s") is not None]
+what = (", ".join(checkers) + (" checkers" if len(checkers) > 1 else " checker")) if checkers else "QCEC defaults"
+note = (f"MQT QCEC {meta['versions'].get('mqt.qcec', '?')}, strategy \"{strategy}\" ({what}), "
+        + (f"{timeout:g} s timeout. " if timeout else "no timeout. ")
+        + f"Each point has {pairs} circuit pairs; the cell shows the median check time over the pairs that finished.")
+if opt_ts:
+    note += (f" Optimization (QCEC preprocessing) ranges {min(opt_ts) * 1e3:.0f}\u2013{max(opt_ts) * 1e3:.0f} ms"
+             " and is in the tooltip and table.")
+
+data = {
+    "note": note,
+    "qubits": qubits, "gates": gates, "pairs": pairs, "cells": cells, "paused": paused,
+    "done": n_done, "total": total,
+    "updated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+    "started": meta.get("started", "")[:16].replace("T", " "),
+}
+
+HTML = r"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QCEC check time by circuit size</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface-1: #fcfcfb; --cell-empty: #f0efec;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+  --gridline: #e1e0d9; --border: rgba(11,11,11,0.10);
+  --critical: #d03b3b; --accent: #2a78d6;
+  --b0: #cde2fb; --b1: #9ec5f4; --b2: #6da7ec; --b3: #3987e5; --b4: #256abf; --b5: #184f95; --b6: #0d366b;
+  --t0: #0b0b0b; --t1: #0b0b0b; --t2: #0b0b0b; --t3: #fff; --t4: #fff; --t5: #fff; --t6: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface-1: #1a1a19; --cell-empty: #2c2c2a;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --gridline: #2c2c2a; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5;
+    --b0: #0d366b; --b1: #184f95; --b2: #256abf; --b3: #3987e5; --b4: #6da7ec; --b5: #9ec5f4; --b6: #cde2fb;
+    --t0: #fff; --t1: #fff; --t2: #fff; --t3: #fff; --t4: #0b0b0b; --t5: #0b0b0b; --t6: #0b0b0b;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface-1: #1a1a19; --cell-empty: #2c2c2a;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #898781;
+  --gridline: #2c2c2a; --border: rgba(255,255,255,0.10);
+  --accent: #3987e5;
+  --b0: #0d366b; --b1: #184f95; --b2: #256abf; --b3: #3987e5; --b4: #6da7ec; --b5: #9ec5f4; --b6: #cde2fb;
+  --t0: #fff; --t1: #fff; --t2: #fff; --t3: #fff; --t4: #0b0b0b; --t5: #0b0b0b; --t6: #0b0b0b;
+}
+html, body { margin: 0; }
+.viz-root {
+  background: var(--page); color: var(--text-primary); min-height: 100vh; box-sizing: border-box;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px;
+}
+figure { margin: 0 auto; max-width: 860px; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px 28px; }
+h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+.sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; line-height: 1.45; }
+.toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+button { font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { background: var(--cell-empty); }
+.plot { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; align-items: center; }
+.ylab { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12px; color: var(--text-secondary); }
+.grid { display: grid; gap: 2px; background: var(--surface-1); }
+.hdr { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.colhdr { text-align: center; padding-bottom: 6px; }
+.rowhdr { text-align: right; padding-right: 8px; align-self: center; }
+.cell { height: 52px; border-radius: 4px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; font-size: 13px; line-height: 1.25; cursor: default; outline-offset: 1px; }
+.cell .v { font-weight: 600; }
+.cell .s { font-size: 11px; opacity: 0.85; }
+.cell:hover, .cell:focus-visible { filter: brightness(1.08); outline: 2px solid var(--text-secondary); }
+.cell.empty { background: var(--cell-empty); color: var(--text-secondary); }
+.cell.pending { color: var(--text-muted); }
+.icon-oom { color: var(--critical); font-weight: 700; }
+.icon-run { color: var(--accent); }
+.xlab { text-align: center; font-size: 12px; color: var(--text-secondary); margin-top: 8px; grid-column: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 18px 28px; margin-top: 18px; font-size: 12px; color: var(--text-secondary); }
+.scale { display: flex; flex-direction: column; gap: 4px; }
+.scale .bar { display: flex; gap: 2px; }
+.scale .sw { width: 64px; height: 10px; border-radius: 2px; }
+.scale .ticks { display: flex; gap: 2px; }
+.scale .ticks span { width: 64px; white-space: nowrap; text-align: center; font-size: 11px; color: var(--text-muted); }
+.keys { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.note { font-size: 12px; color: var(--text-muted); margin: 14px 0 0; line-height: 1.45; }
+.tip { position: fixed; pointer-events: none; background: var(--surface-1); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12); display: none; z-index: 10; min-width: 190px; }
+.tip .t { color: var(--text-secondary); margin-bottom: 4px; }
+.tip .row { display: flex; justify-content: space-between; gap: 16px; }
+.tip .row b { font-variant-numeric: tabular-nums; }
+.tip .row span { color: var(--text-secondary); }
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 16px; }
+th, td { padding: 5px 8px; border-bottom: 1px solid var(--gridline); text-align: right; font-variant-numeric: tabular-nums; }
+th { color: var(--text-secondary); font-weight: 600; }
+th:nth-child(3), td:nth-child(3) { text-align: left; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<figure aria-labelledby="title">
+  <h1 id="title">QCEC check time by circuit size</h1>
+  <p class="sub" id="sub"></p>
+  <div class="toolbar"><button id="toggle" type="button" aria-pressed="false">Show table</button></div>
+  <div id="chart">
+    <div class="plot">
+      <div class="ylab">Qubits</div>
+      <div class="grid" id="grid" role="grid" aria-label="Median simulation time per qubit count and gate count"></div>
+      <div class="xlab">Base gates per circuit (each pair has about twice this many)</div>
+    </div>
+    <div class="legend">
+      <div class="scale" aria-hidden="true">
+        <div>Median check time</div>
+        <div class="bar" id="swatches"></div>
+        <div class="ticks" id="ticks"></div>
+      </div>
+      <div class="keys">
+        <div><span class="icon-oom">&#x2715;</span> Failed (out of memory or timed out)</div>
+        <div><span class="icon-run">&#x25CF;</span> Running now</div>
+        <div><span style="color:var(--text-muted)">&#x25CB;</span> Pending</div>
+        <div><span style="color:var(--text-muted)">&#x2013;</span> Skipped by the profiler after a failure at a smaller size</div>
+      </div>
+    </div>
+  </div>
+  <div id="tableview" hidden></div>
+  <p class="note" id="note"></p>
+</figure>
+<div class="tip" id="tip" role="tooltip"></div>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+if (location.hash === "#dark" || location.hash === "#light") document.documentElement.dataset.theme = location.hash.slice(1);
+
+const BINS = [0.01, 0.1, 1, 10, 60, 600];            // seconds: upper edges of bins 0..5; bin 6 is >= 10 min
+const BIN_LABELS = ["<10 ms", "10–100 ms", "0.1–1 s", "1–10 s", "10–60 s", "1–10 min", "≥10 min"];
+const bin = s => { let i = 0; while (i < BINS.length && s >= BINS[i]) i++; return i; };
+const fmt = s => s == null ? "–" : s < 1 ? (s * 1e3).toFixed(s < 0.01 ? 1 : 0) + " ms"
+  : s < 60 ? s.toFixed(s < 10 ? 2 : 1) + " s" : s < 3600 ? (s / 60).toFixed(1) + " min" : (s / 3600).toFixed(1) + " h";
+const fmtG = g => g >= 1000 ? (g / 1000) + "k" : String(g);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+document.getElementById("note").textContent = DATA.note;
+const pct = Math.round(100 * DATA.done / DATA.total);
+document.getElementById("sub").textContent =
+  `${DATA.done} of ${DATA.total} checks done (${pct}%). Run started ${DATA.started} UTC; chart updated ${DATA.updated}.` + (DATA.paused ? " Run is paused." : "");
+
+// Grid: header row, then one row per qubit count.
+const grid = document.getElementById("grid");
+grid.style.gridTemplateColumns = `auto repeat(${DATA.gates.length}, minmax(96px, 1fr))`;
+grid.appendChild(el("div", "hdr"));
+for (const g of DATA.gates) grid.appendChild(el("div", "hdr colhdr", fmtG(g)));
+const byKey = new Map(DATA.cells.map(c => [c.q + "/" + c.g, c]));
+
+function label(c) {
+  if (c.state === "done") return { v: fmt(c.sim), s: c.ok < DATA.pairs ? `${c.ok}/${DATA.pairs} pairs done` + (c.running ? ", 1 running" : "") : null };
+  if (c.state === "running") return { icon: ["icon-run", "●"], v: "Running", s: c.oom ? `${c.oom}/${DATA.pairs} ${c.fail_label.toLowerCase()} so far` : `${DATA.pairs - c.pending - 1}/${DATA.pairs} done` };
+  if (c.state === "oom") return { icon: ["icon-oom", "✕"], v: c.fail_label, s: `${c.oom}/${DATA.pairs} pairs` + (c.skipped ? `, ${c.skipped} skipped` : "") + (c.pending ? `, ${c.pending} pending` : "") };
+  if (c.state === "skipped") return { icon: [null, "–"], v: "Skipped", s: c.skip_short };
+  return { icon: [null, "○"], v: "Pending", s: null };
+}
+
+const tip = document.getElementById("tip");
+function showTip(c, x, y) {
+  tip.replaceChildren();
+  tip.appendChild(el("div", "t", `${c.q} qubits × ${fmtG(c.g)} gates`));
+  const rows = [];
+  if (c.state === "done") {
+    rows.push(["Simulation (median)", fmt(c.sim)], ["  equivalent pairs", fmt(c.sim_eq)], ["  non-equivalent pairs", fmt(c.sim_neq)],
+              ["Optimization (median)", fmt(c.opt)]);
+  }
+  rows.push(["Pairs finished", `${c.ok} of ${DATA.pairs}`]);
+  for (const [k, n] of Object.entries(c.fail_kinds)) rows.push([k, String(n)]);
+  if (c.skipped) rows.push(["Skipped", String(c.skipped)]);
+  if (c.running) rows.push(["Running now", "1"]);
+  if (c.pending) rows.push(["Pending", String(c.pending)]);
+  if (c.wrong) rows.push(["Flagged verdicts", String(c.wrong)]);
+  for (const [k, v] of rows) { const r = el("div", "row"); r.append(el("span", null, k), el("b", null, v)); tip.appendChild(r); }
+  tip.style.display = "block";
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(x + 14, innerWidth - w - 8) + "px";
+  tip.style.top = Math.min(y + 14, innerHeight - h - 8) + "px";
+}
+const hideTip = () => { tip.style.display = "none"; };
+
+for (const q of DATA.qubits) {
+  grid.appendChild(el("div", "hdr rowhdr", String(q)));
+  for (const g of DATA.gates) {
+    const c = byKey.get(q + "/" + g), L = label(c);
+    const cell = el("div", "cell");
+    cell.tabIndex = 0;
+    cell.setAttribute("role", "gridcell");
+    if (c.state === "done") {
+      const b = bin(c.sim);
+      cell.style.background = `var(--b${b})`;
+      cell.style.color = `var(--t${b})`;
+    } else {
+      cell.classList.add("empty");
+      if (c.state === "pending" || c.state === "skipped") cell.classList.add("pending");
+    }
+    const top = el("div", "v");
+    if (L.icon) { const i = el("span", L.icon[0], L.icon[1] + " "); top.appendChild(i); }
+    top.appendChild(document.createTextNode(L.v));
+    cell.appendChild(top);
+    if (L.s) cell.appendChild(el("div", "s", L.s));
+    cell.setAttribute("aria-label", `${q} qubits, ${g} gates: ${L.v}${L.s ? ", " + L.s : ""}`);
+    cell.addEventListener("pointermove", e => showTip(c, e.clientX, e.clientY));
+    cell.addEventListener("pointerleave", hideTip);
+    cell.addEventListener("focus", () => { const r = cell.getBoundingClientRect(); showTip(c, r.right - 10, r.bottom - 10); });
+    cell.addEventListener("blur", hideTip);
+    grid.appendChild(cell);
+  }
+}
+
+// Scale legend.
+const sw = document.getElementById("swatches"), ticks = document.getElementById("ticks");
+BIN_LABELS.forEach((t, i) => {
+  const s = el("div", "sw"); s.style.background = `var(--b${i})`; sw.appendChild(s);
+  ticks.appendChild(el("span", null, t));
+});
+
+// Table view.
+const tv = document.getElementById("tableview");
+const table = el("table");
+const head = el("tr");
+for (const h of ["Qubits", "Gates", "Status", "Simulation", "Sim (eq.)", "Sim (non-eq.)", "Optimization", "Finished", "Failed", "Skipped", "Remaining"])
+  head.appendChild(el("th", null, h));
+const thead = el("thead"); thead.appendChild(head); table.appendChild(thead);
+const tbody = el("tbody");
+const STATUS = { done: "Done", running: "Running", oom: "Out of memory", skipped: "Skipped", pending: "Pending" };
+for (const c of DATA.cells) {
+  const tr = el("tr");
+  for (const v of [c.q, c.g, (c.state === "oom" ? c.fail_label : STATUS[c.state]) + (c.state === "done" && c.ok < DATA.pairs ? " (partial)" : ""),
+                   fmt(c.sim), fmt(c.sim_eq), fmt(c.sim_neq), fmt(c.opt), `${c.ok}/${DATA.pairs}`, c.oom, c.skipped, DATA.pairs - c.ok - c.oom - c.skipped])
+    tr.appendChild(el("td", null, String(v)));
+  tbody.appendChild(tr);
+}
+table.appendChild(tbody); tv.appendChild(table);
+const btn = document.getElementById("toggle");
+btn.addEventListener("click", () => {
+  const show = tv.hidden;
+  tv.hidden = !show; document.getElementById("chart").hidden = show;
+  btn.textContent = show ? "Show chart" : "Show table"; btn.setAttribute("aria-pressed", String(show));
+});
+</script>
+</body>
+</html>
+"""
+
+blob = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+out = run / "progress_chart.html"
+out.write_text(HTML.replace("/*__DATA__*/null", blob), encoding="utf-8")
+print(out)

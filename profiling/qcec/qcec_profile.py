@@ -102,6 +102,22 @@ def skip_group(cfg: dict[str, Any], strategy: str) -> tuple:
     return (strategy, *sorted((k, str(v)) for k, v in cfg.items() if k not in ("gates", "pairs")))
 
 
+def oom_group(cfg: dict[str, Any], strategy: str) -> tuple:
+    """Everything that identifies a qubit-scaling series (same gate count) except the qubit count."""
+    return (strategy, *sorted((k, str(v)) for k, v in cfg.items() if k not in ("qubits", "pairs")))
+
+
+def is_oom(rec: dict[str, Any]) -> bool:
+    """Worker killed by the kernel OOM killer (SIGKILL, exit -9) or a reported allocation failure.
+
+    Hard timeouts also SIGKILL the worker but are recorded with status "hard_timeout", so a
+    -9 death under status "error" means the memory cap was hit.
+    """
+    err = rec.get("error") or ""
+    return rec.get("status") == "error" and (
+        "exit code -9" in err or "MemoryError" in err or "bad_alloc" in err)
+
+
 # Strategy keys consumed by the profiler instead of being passed to mqt.qcec.verify.
 PROFILER_KEYS = ("hard_timeout",)
 
@@ -385,6 +401,17 @@ def cmd_run(args: argparse.Namespace) -> None:
     skip_after = int(sweep.get("skip_after_timeouts", 0))
     timeouts_at: dict[tuple, dict[int, int]] = {}   # skip group -> gates -> timeout count
     skip_above: dict[tuple, int] = {}               # skip group -> skip gate counts above this
+    # Out of memory at (gates, q) skips every qubit count above q at that gate count.
+    # On by default; set skip_higher_qubits_on_oom = false in the sweep to disable.
+    skip_oom = bool(sweep.get("skip_higher_qubits_on_oom", True))
+    oom_at: dict[tuple, int] = {}                   # oom group -> lowest qubit count that ran out of memory
+    if results_path.exists() and skip_oom:
+        for l in results_path.read_text().splitlines():
+            r = json.loads(l) if l.strip() else None
+            if r and is_oom(r):
+                task = next(t for t in tasks if t["key"] == r["key"])
+                g = oom_group(task["cfg"], task["strategy"])
+                oom_at[g] = min(oom_at.get(g, r["qubits"]), r["qubits"])
     if results_path.exists() and skip_after:
         for l in results_path.read_text().splitlines():
             r = json.loads(l) if l.strip() else None
@@ -414,6 +441,13 @@ def cmd_run(args: argparse.Namespace) -> None:
                     print(f"\n[qcec-profile] {task['strategy']}: {cnt[rec['gates']]} timeouts at "
                           f"{rec['gates']} gates; skipping the rest of this series from {rec['gates']} gates up",
                           flush=True)
+            if skip_oom and is_oom(rec):
+                g = oom_group(task["cfg"], task["strategy"])
+                if rec["qubits"] < oom_at.get(g, float("inf")):
+                    oom_at[g] = rec["qubits"]
+                    print(f"\n[qcec-profile] {task['strategy']}: out of memory at {rec['qubits']} qubits, "
+                          f"{rec['gates']} gates; skipping higher qubit counts at {rec['gates']} gates",
+                          flush=True)
             if rec["outcome"] in ("incorrect", "error"):
                 bad += 1
                 print(f"\n[qcec-profile] {rec['outcome'].upper()}: {rec['key']} "
@@ -431,6 +465,11 @@ def cmd_run(args: argparse.Namespace) -> None:
                 limit = skip_above.get(skip_group(task["cfg"], task["strategy"]))
                 if limit is not None and task["cfg"].get("gates", 100) >= limit:
                     finish(task, {"status": "skipped", "error": f"timed out at {limit} gates"})
+                    continue
+                q_oom = oom_at.get(oom_group(task["cfg"], task["strategy"]))
+                if q_oom is not None and task["cfg"].get("qubits", 4) > q_oom:
+                    finish(task, {"status": "skipped",
+                                  "error": f"out of memory at {q_oom} qubits, {task['cfg'].get('gates', 100)} gates"})
                     continue
                 ds_dir = run_dir / "datasets" / task["dataset"]
                 timeout, hard = strategy_timeouts(sweep, task["options"])
