@@ -164,6 +164,30 @@ namespace {
         CHECK(parse_body("").size() == 0);
     }
 
+    void test_dag() {
+        const CircuitDAG dag = parse_qasm_dag(kHeader + "gphase(0.5); h q[0]; cx q[0],q[1]; t q[2];");
+        CHECK(dag.n == 3);
+        CHECK(dag.global_phase == 0.5);
+        CHECK(dag.nodes.size() == 3);
+        if (dag.nodes.size() != 3) return;
+
+        // Nodes are in source order: 0 = h, 1 = cx, 2 = t.
+        CHECK(is_gate(dag.nodes[0].gate, make_gate(K::H, 0)));
+        CHECK(is_gate(dag.nodes[1].gate, make_gate(K::CX, 0, 1)));
+        CHECK(is_gate(dag.nodes[2].gate, make_gate(K::T, 2)));
+        // Wire 0 runs h -> cx, wire 1 holds only cx, wire 2 only t.
+        CHECK(dag.head[0] == 0 && dag.next_on(0, 0) == 1 && dag.tail[0] == 1);
+        CHECK(dag.head[1] == 1 && dag.tail[1] == 1);
+        CHECK(dag.head[2] == 2 && dag.tail[2] == 2);
+
+        try {
+            (void)parse_qasm_dag(kHeader + "h q[7];");
+            CHECK(false);
+        } catch (const ParseError& e) {
+            CHECK(e.line() == 4 && e.column() == 5);
+        }
+    }
+
     void test_header_errors() {
         CHECK(fails_at("", 1, 1));
         CHECK(fails_at("qubit[2] q;", 1, 1));                               // no version
@@ -250,6 +274,7 @@ int main() {
     test_global_phase();
     test_numbers();
     test_layout();
+    test_dag();
     test_header_errors();
     test_gate_errors();
     test_messages();

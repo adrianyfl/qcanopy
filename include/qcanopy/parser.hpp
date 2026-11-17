@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include "qcanopy/dag.hpp"
 #include "qcanopy/ir.hpp"
 
 #include <cstdint>
@@ -37,6 +38,10 @@ namespace qcanopy {
             : std::invalid_argument(std::to_string(line) + ":" + std::to_string(column) + ": " + message),
               line_(line), column_(column) {}
 
+        // The same error with the file it came from: what() reads "file:line:column: message".
+        ParseError(const std::string& file, const ParseError& e)
+            : std::invalid_argument(file + ":" + e.what()), line_(e.line_), column_(e.column_) {}
+
         uint32_t line() const { return line_; }
         uint32_t column() const { return column_; }
 
@@ -48,5 +53,13 @@ namespace qcanopy {
     // Parses circuit source text into a Circuit. Throws ParseError if the text is not
     // accepted; the returned circuit always passes validate().
     Circuit parse_qasm(std::string_view source);
+
+    // As parse_qasm, reading the source from a file. Throws std::runtime_error if the file
+    // cannot be read; a ParseError names the file (see ParseError).
+    Circuit parse_qasm_file(const std::string& path);
+
+    // The same two entry points, returning the circuit as a DAG for the rewrite passes.
+    CircuitDAG parse_qasm_dag(std::string_view source);
+    CircuitDAG parse_qasm_file_dag(const std::string& path);
 
 }

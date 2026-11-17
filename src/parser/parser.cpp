@@ -5,6 +5,7 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <fstream>
 #include <locale>
 #include <sstream>
 #include <string>
@@ -251,6 +252,28 @@ namespace qcanopy {
 
     Circuit parse_qasm(std::string_view source) {
         return Parser(source).parse();
+    }
+
+    Circuit parse_qasm_file(const std::string& path) {
+        std::ifstream in(path, std::ios::binary);
+        if (!in) throw std::runtime_error("cannot open " + path);
+        std::ostringstream text;
+        text << in.rdbuf();
+        if (in.bad()) throw std::runtime_error("cannot read " + path);
+
+        try {
+            return parse_qasm(text.str());
+        } catch (const ParseError& e) {
+            throw ParseError(path, e);
+        }
+    }
+
+    CircuitDAG parse_qasm_dag(std::string_view source) {
+        return CircuitDAG(parse_qasm(source));
+    }
+
+    CircuitDAG parse_qasm_file_dag(const std::string& path) {
+        return CircuitDAG(parse_qasm_file(path));
     }
 
 }
