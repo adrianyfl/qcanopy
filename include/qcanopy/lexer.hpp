@@ -1,6 +1,6 @@
-// lexer.hpp — first stage of the parser: splits circuit source text into tokens (names,
-// numbers, strings, punctuation) so the parser never looks at raw characters.
-// Internal to qcanopy::parser.
+// qcanopy/lexer.hpp — first stage of the parser: splits circuit source text into tokens
+// (names, numbers, strings, punctuation) so the parser never looks at raw characters.
+// To read a circuit, use parse_qasm (qcanopy/parser.hpp) rather than the lexer directly.
 //
 // 1. Token::text is a view into the source, so the source must outlive its tokens.
 // 2. Positions are 1-based. A column is a byte offset within the line, so a tab counts as one.

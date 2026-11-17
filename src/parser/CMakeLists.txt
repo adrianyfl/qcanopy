@@ -2,6 +2,7 @@
 
 add_library(qcanopy_parser STATIC
   lexer.cpp
+  parser.cpp
 )
 add_library(qcanopy::parser ALIAS qcanopy_parser)
 

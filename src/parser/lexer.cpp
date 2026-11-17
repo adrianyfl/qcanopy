@@ -1,4 +1,4 @@
-#include "lexer.hpp"
+#include "qcanopy/lexer.hpp"
 
 #include "qcanopy/parser.hpp"
 

@@ -1,5 +1,5 @@
-// Tests for the lexer (src/parser/lexer.hpp).
-#include "../../src/parser/lexer.hpp"
+// Tests for the lexer (qcanopy/lexer.hpp).
+#include "qcanopy/lexer.hpp"
 #include "qcanopy/parser.hpp"
 
 #include <cstdio>
