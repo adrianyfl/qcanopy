@@ -1,4 +1,7 @@
 #include "qcanopy/sim.hpp"
+#ifdef QCANOPY_HAS_CUDA
+#include "cuda_sim.hpp"
+#endif
 
 #include <cstdint>
 #include <stdexcept>
@@ -55,6 +58,14 @@ namespace qcanopy {
         return *this;
     }
 
+    Simulator::Simulator(bool allow_gpu) {
+#ifdef QCANOPY_HAS_CUDA
+    use_gpu_ = allow_gpu && cuda::device_available();
+#else
+    (void)allow_gpu;   // unused in CPU-only builds; silences -Wunused-parameter
+#endif
+    }
+    
     // Executes a flattened circuit and returns the final state.
     StateVector Simulator::execute(const Circuit& circuit) const{
         // Start from |0...0>
@@ -63,6 +74,7 @@ namespace qcanopy {
 
     // Executes a flattened circuit starting from a caller-provided state.
     StateVector Simulator::execute(const Circuit& circuit, StateVector state) const{
+
         if (state.num_qbits != circuit.n ||
             state.amplitudes.size() != (std::size_t{1} << circuit.n)) {
             throw std::invalid_argument("Simulator::execute: initial state size does not match circuit");
@@ -74,6 +86,12 @@ namespace qcanopy {
     // Applies the circuit in place, optionally abandoning the run once it has been cancelled.
     bool Simulator::evolve(const Circuit& circuit, StateVector& state,
                            const std::atomic<std::size_t>* stop_at, std::size_t index) const{
+#ifdef QCANOPY_HAS_CUDA
+        if (use_gpu_) {
+            cuda::evolve(circuit, state);
+            return true;
+        }
+#endif
         const std::size_t num_gates = circuit.gates.size();
         for (std::size_t g = 0; g < num_gates; ++g) {
             // Periodic cancellation checkpoint (a relaxed load: just a plain read on x86/ARM).

@@ -65,7 +65,7 @@ namespace qcanopy {
     // Core simulator engine.
     class Simulator {
     public:
-        Simulator() = default;
+        explicit Simulator(bool allow_gpu = true);
 
         // Executes a flattened circuit and returns the final state.
         StateVector execute(const Circuit& circuit) const;
@@ -95,6 +95,7 @@ namespace qcanopy {
 
     private:
         // Gates applied between cancellation checks inside a single run.
+        bool use_gpu_ = false;
         static constexpr std::size_t kCancelCheckInterval = 64;
 
         // Applies the circuit (gates + global phase) to `state` in place. If stop_at is non-null,
