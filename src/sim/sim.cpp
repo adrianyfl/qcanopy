@@ -60,12 +60,12 @@ namespace qcanopy {
 
     Simulator::Simulator(bool allow_gpu) {
 #ifdef QCANOPY_HAS_CUDA
-    use_gpu_ = allow_gpu && cuda::device_available();
+        use_gpu_ = allow_gpu && cuda::device_available();
 #else
-    (void)allow_gpu;   // unused in CPU-only builds; silences -Wunused-parameter
+        (void)allow_gpu;   // unused in CPU-only builds; silences -Wunused-parameter
 #endif
     }
-    
+
     // Executes a flattened circuit and returns the final state.
     StateVector Simulator::execute(const Circuit& circuit) const{
         // Start from |0...0>

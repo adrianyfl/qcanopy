@@ -94,8 +94,8 @@ namespace qcanopy {
         StateVector execute(const CircuitDAG& dag) const;
 
     private:
-        // Gates applied between cancellation checks inside a single run.
         bool use_gpu_ = false;
+        // Gates applied between cancellation checks inside a single run.
         static constexpr std::size_t kCancelCheckInterval = 64;
 
         // Applies the circuit (gates + global phase) to `state` in place. If stop_at is non-null,

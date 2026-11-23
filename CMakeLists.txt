@@ -15,9 +15,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Shared warning flags: link into every target we own
 add_library(qcanopy_warnings INTERFACE)
 if(MSVC)
-  target_compile_options(qcanopy_warnings INTERFACE /W4 /permissive-)
+  target_compile_options(qcanopy_warnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:/W4 /permissive->)
 else()
-  target_compile_options(qcanopy_warnings INTERFACE -Wall -Wextra -Wpedantic)
+  target_compile_options(qcanopy_warnings INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wpedantic>)
 endif()
  
 # Modules
