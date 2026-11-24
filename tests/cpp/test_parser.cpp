@@ -1,6 +1,8 @@
 // Tests for parse_qasm (qcanopy/parser.hpp).
+#include "qcanopy/generator.hpp"
 #include "qcanopy/parser.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
@@ -456,11 +458,12 @@ namespace {
         CHECK(fails_at("OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqubit[2] q;", 3, 1));
         CHECK(fails_at("OPENQASM 3.0;\ninclude \"stdgates.inc\";\nqreg q[2];", 3, 1));
 
-        // Gates and statements outside the 2.0 list.
-        CHECK(fails_at(kHeader2 + "ccx q[0],q[1],q[2];", 4, 1));
-        CHECK(fails_at(kHeader2 + "ry(1) q[0];", 4, 1));
-        CHECK(fails_at(kHeader2 + "U(0,0,0) q[0];", 4, 1));
+        // Gates and statements outside 2.0 and qelib1.inc.
+        CHECK(fails_at(kHeader2 + "mcx q[0],q[1],q[2];", 4, 1));
+        CHECK(fails_at(kHeader2 + "csdg q[0],q[1];", 4, 1));
+        CHECK(fails_at(kHeader2 + "swap q[0],q[1];", 4, 1));
         CHECK(fails_at(kHeader2 + "gphase(1);", 4, 1));
+        CHECK(fails_at(kHeader2 + "measure q[0];", 4, 1));
 
         // Operands.
         CHECK(fails_at(kHeader2 + "x q[3];", 4, 5));
@@ -475,7 +478,202 @@ namespace {
         CHECK(error_of("OPENQASM 2.0;\nqreg a[20];\nqreg b[13];") ==
               "3:8: circuit would have more than 32 qubits");
         CHECK(error_of("OPENQASM 2.0;\nqreg q[2];\nqreg q[2];") == "3:6: register 'q' is already declared");
-        CHECK(error_of(kHeader2 + "ccx q[0],q[1],q[2];") == "4:1: unknown gate or statement 'ccx'");
+        CHECK(error_of(kHeader2 + "mcx q[0],q[1],q[2];") == "4:1: unknown gate or statement 'mcx'");
+    }
+
+    // ---- OpenQASM 2.0 gate definitions and qelib1.inc ----
+
+    // Dense operators, column-major, as testgen::reference_unitary returns them.
+    using Matrix = std::vector<cplx>;
+
+    bool close(const Matrix& a, const Matrix& b) {
+        if (a.size() != b.size()) return false;
+        for (std::size_t i = 0; i < a.size(); ++i)
+            if (std::abs(a[i] - b[i]) > 1e-12) return false;
+        return true;
+    }
+
+    // The operator of a 2.0 program on qreg q[n].
+    Matrix unitary2(int n, const std::string& body) {
+        return testgen::reference_unitary(parse_qasm(
+            "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[" + std::to_string(n) + "];\n" + body));
+    }
+
+    Matrix unitary_of(const Gate& g, int n) {
+        Circuit c(n);
+        c.add(g);
+        return testgen::reference_unitary(c);
+    }
+
+    // V on q[1], controlled by q[0]: V acts when bit 0 of the basis index is set, that is on
+    // indices 1 (target 0) and 3 (target 1).
+    Matrix controlled(const Gate& v) {
+        Matrix m(16, 0.0);
+        const auto at = [&](int row, int col) -> cplx& { return m[col * 4 + row]; };
+        at(0, 0) = 1;
+        at(2, 2) = 1;
+        at(1, 1) = v.m[0];
+        at(1, 3) = v.m[1];
+        at(3, 1) = v.m[2];
+        at(3, 3) = v.m[3];
+        return m;
+    }
+
+    // The 3-qubit identity with basis states i and j exchanged.
+    Matrix swapped(std::size_t i, std::size_t j) {
+        Matrix m(64, 0.0);
+        for (std::size_t k = 0; k < 8; ++k) {
+            const std::size_t to = k == i ? j : k == j ? i : k;
+            m[k * 8 + to] = 1;
+        }
+        return m;
+    }
+
+    void test_qasm2_builtins() {
+        const Circuit c = parse_qasm(kHeader2 + "U(0.3,0.2,0.1) q[0]; CX q[2],q[1];");
+        CHECK(c.size() == 2);
+        if (c.size() == 2) {
+            CHECK(is_gate(c.gates[0], make_gate(K::U, 0, {0.3, 0.2, 0.1})));
+            CHECK(is_gate(c.gates[1], make_gate(K::CX, 2, 1)));
+        }
+        CHECK(c.global_phase == 0.0);       // parser.hpp, point 3: 2.0's U is the IR's U
+
+        // Built-ins need no include.
+        const Circuit bare = parse_qasm("OPENQASM 2.0;\nqreg q[2];\nU(0,0,0) q[1]; CX q[0],q[1];");
+        CHECK(bare.size() == 2);
+    }
+
+    // The qelib1.inc gates read from their definitions (parser.hpp, point 3).
+    void test_qelib1_gates() {
+        const Circuit u3 = parse_qasm(kHeader2 + "u3(0.3,0.2,0.1) q[1];");
+        CHECK(u3.size() == 1 && is_gate(u3.gates[0], make_gate(K::U, 1, {0.3, 0.2, 0.1})));
+        const Circuit u2 = parse_qasm(kHeader2 + "u2(0.2,0.1) q[1];");
+        CHECK(u2.size() == 1 && is_gate(u2.gates[0], make_gate(K::U, 1, {kPi / 2, 0.2, 0.1})));
+        const Circuit u1 = parse_qasm(kHeader2 + "u1(0.7) q[1];");
+        CHECK(u1.size() == 1 && is_gate(u1.gates[0], make_gate(K::U, 1, {0, 0, 0.7})));
+
+        CHECK(close(unitary2(1, "u1(0.7) q[0];"), unitary_of(make_gate(K::P, 0, {0.7, 0, 0}), 1)));
+        CHECK(close(unitary2(1, "ry(0.7) q[0];"), unitary_of(make_gate(K::RY, 0, {0.7, 0, 0}), 1)));
+
+        CHECK(close(unitary2(2, "cy q[0],q[1];"), controlled(make_gate(K::Y, 1))));
+        CHECK(close(unitary2(2, "crz(0.7) q[0],q[1];"), controlled(make_gate(K::RZ, 1, {0.7, 0, 0}))));
+        CHECK(close(unitary2(2, "cu1(0.7) q[0],q[1];"), controlled(make_gate(K::P, 1, {0.7, 0, 0}))));
+
+        // parser.hpp, point 3: cu3 is controlled-U3; ch is controlled-H times e^{i pi/4}.
+        CHECK(close(unitary2(2, "cu3(0.3,0.2,0.1) q[0],q[1];"),
+                    controlled(make_gate(K::U, 1, {0.3, 0.2, 0.1}))));
+        CHECK(close(unitary2(2, "cu3(2.9,-1.3,0.8) q[1],q[0];"),
+                    unitary2(2, "cx q[0],q[1]; cx q[1],q[0]; cx q[0],q[1]; cu3(2.9,-1.3,0.8) q[0],q[1];"
+                                " cx q[0],q[1]; cx q[1],q[0]; cx q[0],q[1];")));
+        Matrix ch = controlled(make_gate(K::H, 1));
+        for (cplx& z : ch) z *= std::polar(1.0, kPi / 4);
+        CHECK(close(unitary2(2, "ch q[0],q[1];"), ch));
+
+        // ccx a,b,c flips c when a and b are 1: 15 gates from the library's body.
+        const Circuit ccx = parse_qasm(kHeader2 + "ccx q[0],q[1],q[2];");
+        CHECK(ccx.size() == 15 && ccx.global_phase == 0.0);
+        CHECK(close(unitary2(3, "ccx q[0],q[1],q[2];"), swapped(0b011, 0b111)));
+        CHECK(close(unitary2(3, "ccx q[2],q[0],q[1];"), swapped(0b101, 0b111)));
+
+        // The gates read directly keep their IR kinds.
+        const Circuit direct = parse_qasm(kHeader2 + "h q[0]; cz q[0],q[1];");
+        CHECK(direct.size() == 2 && direct.gates[0].kind == K::H && direct.gates[1].kind == K::CZ);
+    }
+
+    void test_gate_definitions() {
+        // No parameters, then a call: the definition itself adds nothing.
+        const Circuit bell = parse_qasm(kHeader2 + "gate bell a,b { h a; cx a,b; }\nbell q[1],q[2];");
+        CHECK(bell.size() == 2);
+        if (bell.size() == 2) {
+            CHECK(is_gate(bell.gates[0], make_gate(K::H, 1)));
+            CHECK(is_gate(bell.gates[1], make_gate(K::CX, 1, 2)));
+        }
+
+        // Parameters inside expressions, and the built-in U.
+        const Circuit r = parse_qasm(kHeader2 + "gate r(t, u) a { rz(t/2) a; rx(-t*u) a; U(t, u, pi) a; }\n"
+                                                "r(pi, 2) q[2];");
+        CHECK(r.size() == 3);
+        if (r.size() == 3) {
+            CHECK(is_gate(r.gates[0], make_gate(K::RZ, 2, {kPi / 2, 0, 0})));
+            CHECK(is_gate(r.gates[1], make_gate(K::RX, 2, {-kPi * 2, 0, 0})));
+            CHECK(is_gate(r.gates[2], make_gate(K::U, 2, {kPi, 2, kPi})));
+        }
+
+        // A body may call earlier definitions, with its arguments in any order.
+        const Circuit nested = parse_qasm(kHeader2 + "gate bell a,b { h a; cx a,b; }\n"
+                                                     "gate rev a,b { bell b,a; }\nrev q[0],q[2];");
+        CHECK(nested.size() == 2);
+        if (nested.size() == 2) {
+            CHECK(is_gate(nested.gates[0], make_gate(K::H, 2)));
+            CHECK(is_gate(nested.gates[1], make_gate(K::CX, 2, 0)));
+        }
+        CHECK(close(unitary2(3, "gate tof a,b,c { ccx c,b,a; }\ntof q[0],q[1],q[2];"),
+                    unitary2(3, "ccx q[2],q[1],q[0];")));
+
+        // Empty parentheses, an empty body, and a call of each.
+        CHECK(parse_qasm(kHeader2 + "gate g() a { x a; }\ng q[0]; g() q[1];").size() == 2);
+        CHECK(parse_qasm(kHeader2 + "gate nop a { }\nnop q[0];").size() == 0);
+
+        // A definition may come before the include, and may use a library name if the library
+        // is never included.
+        CHECK(parse_qasm("OPENQASM 2.0;\ngate g a { U(0,0,0) a; }\ninclude \"qelib1.inc\";\n"
+                         "qreg q[1];\ng q[0]; h q[0];").size() == 2);
+        const Circuit own_x = parse_qasm("OPENQASM 2.0;\nqreg q[1];\ngate x a { U(pi,0,pi) a; }\nx q[0];");
+        CHECK(own_x.size() == 1 && own_x.gates[0].kind == K::U);
+
+        // Comments and line breaks inside a definition.
+        CHECK(parse_qasm(kHeader2 + "gate g(t) // a rotation\n  a\n{\n  rz(t) a; /* then */ h a;\n}\ng(1) q[0];")
+                  .size() == 2);
+    }
+
+    void test_gate_definition_errors() {
+        // A name is defined once: no redefinitions, of the file's own gates or of the library's.
+        CHECK(fails_at(kHeader2 + "gate bell a,b { h a; }\ngate bell a { x a; }", 5, 6));
+        CHECK(fails_at(kHeader2 + "gate ccx a,b,c { }", 4, 6));
+        CHECK(fails_at(kHeader2 + "gate h a { }", 4, 6));
+        CHECK(fails_at(kHeader2 + "gate U a { }", 4, 6));
+        CHECK(fails_at(kHeader2 + "gate CX a,b { }", 4, 6));
+        CHECK(fails_at("OPENQASM 2.0;\ngate ccx a,b,c { U(0,0,0) a; }\ninclude \"qelib1.inc\";", 3, 1));
+        CHECK(fails_at("OPENQASM 2.0;\ngate h a { U(0,0,0) a; }\ninclude \"qelib1.inc\";", 3, 1));
+
+        // The header.
+        CHECK(fails_at(kHeader2 + "gate g(t,t) a { }", 4, 10));
+        CHECK(fails_at(kHeader2 + "gate g a,a { }", 4, 10));
+        CHECK(fails_at(kHeader2 + "gate g { }", 4, 8));
+        CHECK(fails_at(kHeader2 + "gate g a h a;", 4, 10));
+        CHECK(fails_at(kHeader2 + "gate g a { h a;", 4, 16));               // no closing '}'
+        CHECK(fails_at(kHeader2 + "gate g(1) a { }", 4, 8));
+
+        // The body: gates, parameters, and arguments.
+        CHECK(fails_at(kHeader2 + "gate g a { foo a; }", 4, 12));
+        CHECK(fails_at(kHeader2 + "gate g a { g a; }", 4, 12));             // not yet defined
+        CHECK(fails_at(kHeader2 + "gate g a { h b; }", 4, 14));
+        CHECK(fails_at(kHeader2 + "gate g a { h a[0]; }", 4, 15));
+        CHECK(fails_at(kHeader2 + "gate g(t) a { rz(s) a; }", 4, 18));
+        CHECK(fails_at(kHeader2 + "gate g a { cx a; }", 4, 12));
+        CHECK(fails_at(kHeader2 + "gate g a,b { cx a,a; }", 4, 19));
+        CHECK(fails_at(kHeader2 + "gate g a { rz a; }", 4, 12));
+        CHECK(fails_at("OPENQASM 2.0;\ngate g a { h a; }", 2, 12));          // h needs the include
+
+        // Calls.
+        const std::string g = kHeader2 + "gate g(t) a,b { }\n";
+        CHECK(fails_at(g + "g q[0],q[1];", 5, 1));
+        CHECK(fails_at(g + "g(1) q[0];", 5, 1));
+        CHECK(fails_at(g + "g(1) q[0],q[0];", 5, 11));
+        CHECK(fails_at(kHeader2 + "ccx q[0],q[1],q[0];", 4, 15));
+        CHECK(fails_at(kHeader2 + "gate g(t) a { rz(1/t) a; }\ng(0) q[0];", 5, 1));
+
+        // OpenQASM 3.0 has no gate statements here.
+        CHECK(fails_at(kHeader + "gate g a { }", 4, 1));
+
+        CHECK(error_of(kHeader2 + "gate h a { }") == "4:6: gate 'h' is already defined");
+        CHECK(error_of("OPENQASM 2.0;\ngate ccx a,b,c { U(0,0,0) a; }\ninclude \"qelib1.inc\";") ==
+              "3:1: gate 'ccx' is already defined, so \"qelib1.inc\" cannot be included");
+        CHECK(error_of(kHeader2 + "gate g a { h b; }") == "4:14: unknown qubit argument 'b'");
+        CHECK(error_of(kHeader2 + "gate g(t) a { rz(s) a; }") == "4:18: unknown parameter 's'");
+        CHECK(error_of(kHeader2 + "gate g a,b { cx a,a; }") == "4:19: gate 'cx' needs distinct qubits");
+        CHECK(error_of(kHeader2 + "gate g(t) a { rz(1/t) a; }\ng(0) q[0];") ==
+              "5:1: gate 'g': a parameter of 'g' does not evaluate to a finite number");
     }
 
     void test_messages() {
@@ -508,6 +706,10 @@ int main() {
     test_qasm2_gates();
     test_qasm2_registers();
     test_qasm2_errors();
+    test_qasm2_builtins();
+    test_qelib1_gates();
+    test_gate_definitions();
+    test_gate_definition_errors();
     test_messages();
     if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
     std::printf("all parser tests passed\n");

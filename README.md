@@ -2,11 +2,11 @@
 
 QCanopy provides a quantum circuit IR and dependency DAG, normalization and
 prefix/suffix peeling passes, a deterministic circuit-pair generator, and a
-parser for the generator's OpenQASM 3.0 files.
+parser for OpenQASM 3.0 and 2.0 circuit files.
 `qcanopy_generate` creates labeled equivalent and non-equivalent pairs for
 equivalence-checker tests and experiments on shared computation.
-`qcanopy_parse` and the `qcanopy::parser` library read those files back
-into the IR.
+`qcanopy_parse` and the `qcanopy::parser` library read the generator's
+OpenQASM 3.0 files, and OpenQASM 2.0 benchmark files, into the IR.
 
 **New users:** follow the [test-case generator quick start](docs/generator_quickstart.md)
 to build the tool, generate a dataset, and understand its files, then the
@@ -44,25 +44,38 @@ status, and raw/normalized sharing measurements. Both formats represent the
 same cases when generation arguments match. Each output directory must be absent
 or empty.
 
-## Parse a generated dataset
+## Parse circuit files
 
 ```sh
 ./build/src/parser/qcanopy_parse generated/quickstart-qasm/cases/*.qasm
 ```
 
 This prints the qubit count, gate count, and global phase of each circuit, then
-`parsed 64 of 64 files`. From C++, include `qcanopy/parser.hpp` and link
-`qcanopy::parser`:
+`parsed 64 of 64 files`. A file that fails is reported as
+`file:line:column: message` and the rest are still parsed. From C++, include
+`qcanopy/parser.hpp` and link `qcanopy::parser`:
 
 ```cpp
 qcanopy::Circuit    c   = qcanopy::parse_qasm_file("generated/quickstart-qasm/cases/case-000000.a.qasm");
 qcanopy::CircuitDAG dag = qcanopy::parse_qasm_file_dag("generated/quickstart-qasm/cases/case-000000.a.qasm");
 ```
 
-The parser accepts OpenQASM 3.0 as the generator writes it, plus comments and
-arithmetic such as `pi/2`. It does not read OpenQASM 2.0 files, gates outside the
-generator's set, or circuits with more than 32 qubits. Errors are reported as
-`file:line:column: message`.
+The version header on the first line of a file selects the dialect:
+
+| | OpenQASM 3.0 | OpenQASM 2.0 |
+| --- | --- | --- |
+| Source | `qcanopy_generate --format qasm` | Benchmark circuits, such as the Quokka# set |
+| Library | `stdgates.inc` | `qelib1.inc` |
+| Registers | One `qubit[n]` | Any number of `qreg`; `creg` is ignored |
+| Gates | `id h x y z s sdg t tdg rx ry rz p U cx cz swap` | `U`, `CX`, all of `qelib1.inc` (including `ccx`), and gates the file defines with `gate` |
+
+Both accept comments and arithmetic such as `pi/2`. Gates on three or more
+qubits are expanded into one- and two-qubit gates from their definitions; `ccx`
+becomes 15 gates.
+
+Not supported: circuits with more than 32 qubits, `measure`, `reset`, `barrier`,
+`if`, and gates that are in neither the library nor the file. Of the 7,327
+Quokka# benchmark files, 6,365 parse; 947 of the rest exceed 32 qubits.
 
 ## Generator capabilities
 
@@ -84,8 +97,9 @@ prefix does not establish circuit equivalence.
   output files, verification, and common errors.
 - [Generator reference](docs/test_case_generator.md): complete CLI contract,
   constructions, reproducibility, serialization schemas, and C++ API.
-- [Parser quick start](docs/parser_quickstart.md): parsing generated datasets,
-  the C++ calls, accepted input, how parsed circuits relate to IR files, and errors.
+- [Parser quick start](docs/parser_quickstart.md): parsing OpenQASM 3.0 and 2.0
+  files, the C++ calls, accepted input, how parsed circuits relate to their
+  source, and errors.
 - [Peeling algorithm](src/rewrite/algorithm.md): matching prefix/suffix removal.
 
 Datasets written under `generated/` are Git-ignored. Generate them locally rather

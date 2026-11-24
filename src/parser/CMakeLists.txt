@@ -1,4 +1,4 @@
-# qcanopy_parser: OpenQASM 3.0 parser (include/qcanopy/parser.hpp).
+# qcanopy_parser: OpenQASM 3.0 and 2.0 parser (include/qcanopy/parser.hpp).
 
 add_library(qcanopy_parser STATIC
   lexer.cpp

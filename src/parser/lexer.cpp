@@ -96,6 +96,8 @@ namespace qcanopy::qasm {
                 case ')': t.kind = TokenKind::RParen; break;
                 case '[': t.kind = TokenKind::LBracket; break;
                 case ']': t.kind = TokenKind::RBracket; break;
+                case '{': t.kind = TokenKind::LBrace; break;
+                case '}': t.kind = TokenKind::RBrace; break;
                 case ',': t.kind = TokenKind::Comma; break;
                 case ';': t.kind = TokenKind::Semicolon; break;
                 case '+': t.kind = TokenKind::Plus; break;
