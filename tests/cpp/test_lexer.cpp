@@ -81,6 +81,15 @@ namespace {
                                          {K::Identifier, "q0"}, {K::Identifier, "CX"}}));
     }
 
+    // A gate definition, as in qelib1.inc.
+    void test_braces() {
+        CHECK(lexes_to("gate cz a,b { h b; }",
+                       {{K::Identifier, "gate"}, {K::Identifier, "cz"}, {K::Identifier, "a"}, {K::Comma, ","},
+                        {K::Identifier, "b"}, {K::LBrace, "{"}, {K::Identifier, "h"}, {K::Identifier, "b"},
+                        {K::Semicolon, ";"}, {K::RBrace, "}"}}));
+        CHECK(lexes_to("{}", {{K::LBrace, "{"}, {K::RBrace, "}"}}));
+    }
+
     void test_numbers() {
         CHECK(lexes_to("0", {{K::Integer, "0"}}));
         CHECK(lexes_to("42", {{K::Integer, "42"}}));
@@ -228,6 +237,7 @@ namespace {
 int main() {
     test_generator_program();
     test_identifiers();
+    test_braces();
     test_numbers();
     test_strings();
     test_operators();

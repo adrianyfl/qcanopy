@@ -183,7 +183,8 @@ including `id`. See the [OpenQASM 3.0 gate definitions](https://openqasm.com/ver
 and [tagged standard library](https://github.com/openqasm/openqasm/blob/3.0.0/examples/stdgates.inc).
 
 Generic U1Q/U2Q export fails clearly before publishing a dataset; use IR for those
-matrices. There is no production QASM parser, QASM 2 export, or generic decomposition.
+matrices. There is no QASM 2 export or generic decomposition. To read exported files
+back into the IR, see the [parser quick start](parser_quickstart.md).
 The optional validation tool below parses only for tests and interprets the
 generator's straight-line subset; it is not a general import API.
 

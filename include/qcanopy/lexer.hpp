@@ -27,6 +27,7 @@ namespace qcanopy::qasm {
         String,
         LParen, RParen,         // ( )
         LBracket, RBracket,     // [ ]
+        LBrace, RBrace,         // { }
         Comma,
         Semicolon,
         Plus, Minus,

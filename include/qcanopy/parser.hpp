@@ -1,30 +1,37 @@
-// qcanopy/parser.hpp — parser for OpenQASM 3.0 circuit files.
+// qcanopy/parser.hpp — parser for OpenQASM 3.0 and 2.0 circuit files.
 //
-// Errors in the source text are reported as ParseError, which carries the 1-based line and
-// column where the problem starts. what() reads "line:column: message".
+// Errors are reported as ParseError: 1-based line and column, what() = "line:column: message".
 //
-// 1. Accepted source is a subset of OpenQASM 3.0, in this order:
-//      OPENQASM 3.0;                       required, first
-//      include "stdgates.inc";             required before any gate other than U
-//      qubit[n] name;                      exactly one register, 1 <= n <= kMaxQubits
-//    followed by any number of
-//      gphase(a);                          adds a to Circuit::global_phase
-//      g q[i];   g(a) q[i];   g q[i],q[j];
-//    where g is one of id h x y z s sdg t tdg rx ry rz p U cx cz swap.
-//    Arguments are constant expressions (point 4); register sizes and qubit indices are
-//    integer literals. Comments, "// ..." and "/* ... */", may appear wherever whitespace may.
+// 1. The version header is required, comes first, and selects the dialect:
 //
-// 2. Gates are added in source order, and operand order is kept: for cx the first operand
-//    is the control (ir.hpp, point 3).
+//      OPENQASM 3.0;                       OPENQASM 2.0;
+//      include "stdgates.inc";             include "qelib1.inc";
+//      qubit[n] name;    (exactly one)     qreg name[n];    (one or more)
+//      gphase(a);                          creg name[n];    (ignored)
+//      gates: id h x y z s sdg t tdg       gate definitions (point 5)
+//             rx ry rz p U cx cz swap      gates: U CX, all of qelib1.inc, the file's own
 //
-// 3. Every gate maps to the IR gate with the same matrix except U: OpenQASM 3's built-in
-//    U(theta, phi, lambda) is e^{i theta/2} times the IR's phase-free U, so it becomes a
-//    U gate plus theta/2 of global phase.
+//    U (and 2.0's CX) are built in; other gates need the include first. A circuit has at
+//    most kMaxQubits qubits. Register sizes and qubit indices are integer literals.
+//    Anything else is an error.
 //
-// 4. A constant expression is built from numeric literals, the constant pi, parentheses,
-//    unary '-', and the operators * / and + - with their usual precedence. Everything is
-//    evaluated as a real, so 1/2 is 0.5. (OpenQASM 3 divides two integers as integers,
-//    giving 0; that rule is not implemented.)
+// 2. Gates keep source order and operand order (cx: control first). Registers are numbered
+//    end to end in declaration order: after "qreg a[2]; qreg b[3];", b[0] is qubit 2.
+//
+// 3. Gates become IR gates with the same matrix, except:
+//    - 3.0's U is e^{i theta/2} times the IR's U, so it adds theta/2 of global phase.
+//    - 2.0's rz is read as the IR's RZ, as Qiskit reads it; qelib1.inc's own rz = u1
+//      differs from that by a global phase.
+//    - 2.0's u1 u2 u3 ry cy ch ccx crz cu1 cu3 are expanded from qelib1.inc's definitions
+//      (ccx becomes 15 gates). ch carries a global phase e^{i pi/4}. cu3 has one line added
+//      to the specification's text, as in Qiskit's copy, which makes it controlled-U3.
+//
+// 4. Arguments are expressions over numbers, pi, parentheses, unary '-', and * / + -,
+//    evaluated as reals: 1/2 is 0.5 (OpenQASM 3's integer division is not implemented).
+//
+// 5. A 2.0 definition, "gate name(p, ...) a, b, ... { g(e, ...) a, b; ... }", may call U,
+//    CX and gates defined earlier, on its own arguments. Each call is expanded in place.
+//    A name can be defined only once.
 
 #pragma once
 
