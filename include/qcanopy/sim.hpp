@@ -66,7 +66,7 @@ namespace qcanopy {
     class Simulator {
     public:
         explicit Simulator(bool allow_gpu = true);
-
+	bool uses_gpu() const { return use_gpu_; }
         // Executes a flattened circuit and returns the final state.
         StateVector execute(const Circuit& circuit) const;
 

@@ -17,6 +17,8 @@ qcanopy_add_test(test_dataset_io cpp/test_dataset_io.cpp qcanopy::generator)
 qcanopy_add_test(test_qasm_writer cpp/test_qasm_writer.cpp qcanopy::generator)
 qcanopy_add_test(test_stimulus cpp/test_stimulus.cpp qcanopy::equiv)
 qcanopy_add_test(test_equiv cpp/test_equiv.cpp qcanopy::equiv)
+qcanopy_add_test(test_sim_cuda cpp/test_cuda_sim.cpp qcanopy::equiv)
+set_tests_properties(test_sim_cuda PROPERTIES SKIP_RETURN_CODE 77)   # no GPU -> "Skipped"
 add_test(NAME test_generator_cli COMMAND ${CMAKE_COMMAND}
   "-DGENERATOR=$<TARGET_FILE:qcanopy_generate>" "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
   -P "${CMAKE_CURRENT_SOURCE_DIR}/test_cli.cmake")
