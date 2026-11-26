@@ -27,6 +27,7 @@ add_subdirectory(src/rewrite)            # qcanopy::rewrite
 add_subdirectory(src/sim)                # qcanpoy::sim
 add_subdirectory(src/equiv)              # qcanopy::equiv
 add_subdirectory(src/generator)          # qcanopy::generator, qcanopy_generate
+add_subdirectory(src/cli)                # qcanopy::cli, qcanopy (the CLI binary)
  
 # Tests
 if(QCANOPY_BUILD_TESTS)
