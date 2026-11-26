@@ -18,6 +18,11 @@ qcanopy_add_test(test_qasm_writer cpp/test_qasm_writer.cpp qcanopy::generator)
 qcanopy_add_test(test_stimulus cpp/test_stimulus.cpp qcanopy::equiv)
 qcanopy_add_test(test_equiv cpp/test_equiv.cpp qcanopy::equiv)
 qcanopy_add_test(test_cli_check cpp/test_cli_check.cpp qcanopy::cli)
+if(Python3_Interpreter_FOUND)
+  target_compile_definitions(test_cli_check PRIVATE QCANOPY_TEST_HAVE_PYTHON=1)
+else()
+  target_compile_definitions(test_cli_check PRIVATE QCANOPY_TEST_HAVE_PYTHON=0)
+endif()
 add_test(NAME test_check_cli COMMAND ${CMAKE_COMMAND}
   "-DQCANOPY=$<TARGET_FILE:qcanopy>" "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
   -P "${CMAKE_CURRENT_SOURCE_DIR}/test_check_cli.cmake")

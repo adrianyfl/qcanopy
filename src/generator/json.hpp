@@ -121,6 +121,7 @@ class Parser {
         if (in.peek() == 't' || in.peek() == 'f' || in.peek() == 'n') {
             const char* word = in.peek() == 't' ? "true" : in.peek() == 'f' ? "false" : "null";
             v.type = *word == 'n' ? Value::Null : Value::Boolean;
+            v.number = *word == 't' ? 1 : 0;  // a Boolean's value: 1 true, 0 false
             while (*word) take(*word++);
             return v;
         }

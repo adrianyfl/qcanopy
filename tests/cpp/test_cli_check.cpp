@@ -6,6 +6,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdio>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -49,6 +50,7 @@ namespace {
         CHECK(o.count == 3 && o.seed == 42 && o.tol == 1e-6 && !o.rewrite && o.json);
         CHECK(parse({"--help"}).help);
         CHECK(parse({"a", "--help", "--bogus"}).help);
+        CHECK(parse({"a", "b", "--overlap"}).rewriter.overlap);
     }
 
     void test_parse_errors() {
@@ -66,6 +68,7 @@ namespace {
         CHECK(rejects({"a", "b", "--stimulus", "gaussian"}));
         CHECK(rejects({"a", "b", "--json", "--quiet"}));
         CHECK(rejects({"a", "b", "--json", "--json"}));
+        CHECK(rejects({"a", "b", "--overlap", "--no-rewrite"}));
     }
 
     void test_build_stimulus() {
@@ -79,48 +82,114 @@ namespace {
         CHECK(threw);
     }
 
-    void test_proved_by_rewrite() {
-        // S S fuses to Z during normalize; the rest peels off.
-        const Circuit a = qasm(2, "h q[0];\ns q[1];\ns q[1];\ncx q[0],q[1];\n");
-        const Circuit b = qasm(2, "h q[0];\nz q[1];\ncx q[0],q[1];\n");
-        const CheckOutcome r = check_circuits(a, b, CheckOptions{});
-        CHECK(r.equiv.equivalent && r.proved_by_rewrite);
-        CHECK(r.residual_a == 0 && r.residual_b == 0 && r.equiv.stimuli_checked == 0);
-        CHECK(std::abs(phase_of(r.equiv)) < 1e-9);
+    // A config whose interpreter does not exist, so the rewriter always fails.
+    CheckOptions without_rewriter() {
+        CheckOptions o;
+        o.rewriter.python = "/nonexistent/qcanopy-test-python";
+        return o;
     }
 
-    void test_global_phase_from_rewrite() {
-        // gphase is carried through normalize + peel into the reported phase.
-        const Circuit a = qasm(1, "gphase(0.25);\nh q[0];\n");
-        const Circuit b = qasm(1, "h q[0];\n");
-        const CheckOutcome r = check_circuits(a, b, CheckOptions{});
-        CHECK(r.equiv.equivalent && r.proved_by_rewrite);
+    // ---- parse_pair_proof: reading the prover's output ----
+
+    const char* const kInconclusive = R"({"schema":"qrewrite-pair/1","swap_removal":{},
+        "layout":{"cores_used":true,"policy":"x"},
+        "proof":{"verdict":"inconclusive","proof":[{"kind":"structural"}],
+          "residual_left":{"schema":"qdag/1","num_qubits":2,"global_phase":0.5,
+            "nodes":[{"id":"g9","op":"cx","qubits":[0,1],"params":[]},
+                     {"id":"g2","op":"rz","qubits":[0],"params":[0.25]}],
+            "edges":[{"source":"g2","target":"g9","qubit":0}]},
+          "residual_right":{"schema":"qdag/1","num_qubits":2,"global_phase":0,"nodes":[],"edges":[]}}})";
+
+    std::string with(std::string text, const std::string& from, const std::string& to) {
+        text.replace(text.find(from), from.size(), to);
+        return text;
+    }
+
+    bool rejects_proof(const std::string& text) {
+        std::istringstream in(text);
+        try { parse_pair_proof(in, 2); } catch (const RewriterError&) { return true; }
+        return false;
+    }
+
+    void test_parse_pair_proof() {
+        std::istringstream in(kInconclusive);
+        const PairProof p = parse_pair_proof(in, 2);
+        CHECK(!p.proved && p.cores_used && p.steps == 1);
+        // Nodes are listed out of order; the edge puts rz before cx.
+        CHECK(p.left.size() == 2 && p.left.gates[0].kind == GateKind::RZ && p.left.gates[1].kind == GateKind::CX);
+        CHECK(p.left.gates[0].params[0] == 0.25 && p.left.global_phase == 0.0);
+        CHECK(p.right.size() == 0);
+
+        CHECK(rejects_proof(with(kInconclusive, "\"rz\"", "\"rzz\"")));        // no IR gate
+        CHECK(rejects_proof(with(kInconclusive, "[0.25]", "[\"pi/2\"]")));      // symbolic parameter
+        CHECK(rejects_proof(with(kInconclusive, "\"num_qubits\":2", "\"num_qubits\":3")));
+        CHECK(rejects_proof(with(kInconclusive, "\"inconclusive\"", "\"maybe\"")));
+        CHECK(rejects_proof(with(kInconclusive, "\"inconclusive\"", "\"equivalent_up_to_global_phase\"")));
+        CHECK(rejects_proof("{not json"));
+    }
+
+    // ---- check_circuits without the rewriter (always available) ----
+
+    void test_fallback_when_rewriter_fails() {
+        const Circuit a = qasm(2, "cx q[0],q[1];\n");
+        const Circuit b = qasm(2, "h q[0];\nh q[1];\ncx q[1],q[0];\nh q[0];\nh q[1];\n");
+        const CheckOutcome r = check_circuits(a, b, without_rewriter());
+        CHECK(r.rewrite == RewriteStatus::Failed && !r.rewrite_error.empty());
+        CHECK(r.equiv.equivalent && !r.phase_measured);
+        CHECK(r.residual_a == 1 && r.residual_b == 5 && r.equiv.stimuli_checked == 16);
+    }
+
+    void test_no_rewrite() {
+        CheckOptions o;
+        o.rewrite = false;
+        o.stimuli = {"all-basis"};
+        const CheckOutcome r = check_circuits(qasm(1, "gphase(0.25);\nh q[0];\n"), qasm(1, "h q[0];\n"), o);
+        CHECK(r.rewrite == RewriteStatus::Skipped && r.equiv.equivalent && r.stimuli == 2);
         CHECK(std::abs(phase_of(r.equiv) - 0.25) < 1e-9);
     }
 
-    void test_needs_simulation() {
-        // CX with control and target swapped by Hadamard conjugation: nothing peels.
-        const Circuit a = qasm(2, "cx q[0],q[1];\n");
-        const Circuit b = qasm(2, "h q[0];\nh q[1];\ncx q[1],q[0];\nh q[0];\nh q[1];\n");
-        for (const bool rewrite : {true, false}) {
-            CheckOptions o;
-            o.rewrite = rewrite;
-            const CheckOutcome r = check_circuits(a, b, o);
-            CHECK(r.equiv.equivalent && !r.proved_by_rewrite);
-            CHECK(r.stimuli == 16 && r.equiv.stimuli_checked == 16);
-        }
+    // ---- check_circuits with the real prover (needs Python 3.9+ at configure time) ----
+
+#if QCANOPY_TEST_HAVE_PYTHON
+    void test_rewriter_proves() {
+        // rz(0.3) rz(-0.3) is an inverse pair; the rest matches structurally.
+        const Circuit a = qasm(2, "gphase(0.25);\nh q[0];\nrz(0.3) q[1];\nrz(-0.3) q[1];\ncx q[0],q[1];\n");
+        const Circuit b = qasm(2, "h q[0];\ncx q[0],q[1];\n");
+        const CheckOutcome r = check_circuits(a, b, CheckOptions{});
+        CHECK(r.rewrite == RewriteStatus::Proved && r.proof_steps > 0);
+        CHECK(r.equiv.equivalent && r.residual_a == 0 && r.residual_b == 0 && r.stimuli == 0);
+        CHECK(r.phase_measured && std::abs(phase_of(r.equiv) - 0.25) < 1e-9);  // phase from the full run
     }
 
-    void test_not_equivalent() {
-        const Circuit a = qasm(2, "h q[0];\ncx q[0],q[1];\nz q[0];\n");
-        const Circuit b = qasm(2, "h q[0];\ncx q[0],q[1];\n");
+    void test_rewriter_residual_not_equivalent() {
+        const Circuit a = qasm(2, "h q[0];\ncx q[0],q[1];\nt q[0];\n");
+        const Circuit b = qasm(2, "h q[0];\ncx q[0],q[1];\nz q[0];\n");
         CheckOptions o;
         o.stimuli = {"all-basis"};
         const CheckOutcome r = check_circuits(a, b, o);
-        CHECK(!r.equiv.equivalent && !r.proved_by_rewrite);
-        CHECK(r.residual_a == 1 && r.residual_b == 0);  // only the Z is left to simulate
-        CHECK(r.equiv.mismatch != Mismatch::None);
+        CHECK(r.rewrite == RewriteStatus::Inconclusive);
+        CHECK(r.residual_a == 1 && r.residual_b == 1);  // only t vs z is simulated
+        CHECK(!r.equiv.equivalent && !r.rewriter_contradicted && !r.phase_measured);
     }
+
+    void test_rewriter_residual_equivalent() {
+        // s s vs z: the prover may or may not prove this, but the verdict and phase must hold.
+        const Circuit a = qasm(2, "gphase(-0.5);\nh q[0];\ns q[1];\ns q[1];\ncx q[0],q[1];\n");
+        const Circuit b = qasm(2, "h q[0];\nz q[1];\ncx q[0],q[1];\n");
+        const CheckOutcome r = check_circuits(a, b, CheckOptions{});
+        CHECK(r.rewrite == RewriteStatus::Proved || r.rewrite == RewriteStatus::Inconclusive);
+        CHECK(r.residual_a < a.size());
+        CHECK(r.equiv.equivalent && r.phase_measured && !r.rewriter_contradicted);
+        CHECK(std::abs(phase_of(r.equiv) + 0.5) < 1e-9);
+    }
+
+    void test_rewriter_overlap() {
+        CheckOptions o;
+        o.rewriter.overlap = true;
+        const CheckOutcome r = check_circuits(qasm(2, "cx q[0],q[1];\n"), qasm(2, "cz q[0],q[1];\n"), o);
+        CHECK(r.rewrite != RewriteStatus::Skipped && !r.equiv.equivalent);
+    }
+#endif
 
     void test_width_mismatch() {
         bool threw = false;
@@ -134,10 +203,17 @@ int main() {
     test_parse_options();
     test_parse_errors();
     test_build_stimulus();
-    test_proved_by_rewrite();
-    test_global_phase_from_rewrite();
-    test_needs_simulation();
-    test_not_equivalent();
+    test_parse_pair_proof();
+    test_fallback_when_rewriter_fails();
+    test_no_rewrite();
+#if QCANOPY_TEST_HAVE_PYTHON
+    test_rewriter_proves();
+    test_rewriter_residual_not_equivalent();
+    test_rewriter_residual_equivalent();
+    test_rewriter_overlap();
+#else
+    std::printf("Python 3.9+ not found at configure time: skipping rewriter tests\n");
+#endif
     test_width_mismatch();
     if (failures) { std::printf("%d failure(s)\n", failures); return 1; }
     std::printf("all tests passed\n");

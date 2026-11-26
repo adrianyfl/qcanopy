@@ -20,8 +20,12 @@ else()
   target_compile_options(qcanopy_warnings INTERFACE -Wall -Wextra -Wpedantic)
 endif()
  
+# Python 3.9+ runs the rewriting/ pair prover for `qcanopy check`; optional (check falls back
+# to plain simulation without it).
+find_package(Python3 3.9 COMPONENTS Interpreter QUIET)
+
 # Modules
-add_subdirectory(src/ir)                 # qcanopy::ir
+add_subdirectory(src/ir)                # qcanopy::ir
 add_subdirectory(src/parser)             # qcanopy::parser
 add_subdirectory(src/rewrite)            # qcanopy::rewrite
 add_subdirectory(src/sim)                # qcanpoy::sim

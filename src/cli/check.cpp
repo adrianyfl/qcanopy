@@ -1,9 +1,6 @@
 #include "check.hpp"
 
-#include "qcanopy/dag.hpp"
-#include "qcanopy/normalize.hpp"
 #include "qcanopy/parser.hpp"
-#include "qcanopy/peel.hpp"
 #include "qcanopy/stimulus.hpp"
 
 #include <charconv>
@@ -30,15 +27,20 @@ namespace qcanopy::cli {
         "  --count N         States per random kind (default 8).\n"
         "  --seed UINT64     Seed for the random kinds (default 759).\n"
         "  --tol X           Tolerance on the residual norm and phase (default 1e-9).\n"
-        "  --no-rewrite      Skip the normalize + peel pre-pass and simulate the full circuits.\n"
-        "                    The pre-pass matches gates to about 1e-9, so use this with a smaller --tol.\n"
+        "  --no-rewrite      Skip the rewriter and simulate the full circuits.\n"
+        "  --overlap         Let the rewriter try overlapping rule substitutions (slower).\n"
         "  --json            Print the result as one JSON object.\n"
         "  --quiet           Print nothing; report the verdict by exit status only.\n"
         "  --help            Show this help.\n"
         "\n"
+        "The rewriter (rewriting/run.py pair) first removes common boundaries, inverse pairs and\n"
+        "library identities; only what it leaves is simulated. If it cannot run, the full circuits\n"
+        "are simulated instead. Environment: QCANOPY_PYTHON (interpreter), QCANOPY_REWRITER\n"
+        "(directory holding run.py).\n"
+        "\n"
         "Exit status: 0 equivalent, 1 not equivalent, 2 usage, parse or I/O error.\n"
         "A non-equivalent verdict is definitive. An equivalent verdict from random stimuli means\n"
-        "no stimulus told the circuits apart; from all-basis or the pre-pass it is a proof.\n";
+        "no stimulus told the circuits apart; from all-basis or the rewriter it is a proof.\n";
 
     namespace {
         const std::set<std::string> kStimulusKinds{"haar", "product", "basis", "all-basis"};
@@ -113,28 +115,44 @@ namespace qcanopy::cli {
             return false;
         }
 
+        const char* rewrite_name(RewriteStatus s) {
+            switch (s) {
+                case RewriteStatus::Proved: return "proved";
+                case RewriteStatus::Inconclusive: return "inconclusive";
+                case RewriteStatus::Failed: return "failed";
+                case RewriteStatus::Skipped: break;
+            }
+            return "skipped";
+        }
+
         void print_text(std::ostream& out, const CheckOptions& opts, const CheckOutcome& r) {
             const EquivResult& e = r.equiv;
+            const bool on_residual = r.rewrite == RewriteStatus::Inconclusive;
             out << std::setprecision(6);
             if (e.equivalent) {
                 double phase = std::arg(e.global_phase);
                 if (std::abs(phase) < 1e-12) phase = 0.0;  // hide rounding noise like -2.9e-17
                 out << "equivalent up to global phase e^{i*" << phase << "}";
-                if (r.proved_by_rewrite) {
-                    out << " (proved by rewriting: no gates left after normalize + peel)\n";
-                    return;
+                if (r.rewrite == RewriteStatus::Proved) {
+                    out << " (proved by the rewriter in " << r.proof_steps << " steps)\n";
+                } else {
+                    out << " (" << e.stimuli_checked << " stimuli" << (on_residual ? " on the rewriter's residual" : "")
+                        << ", max deviation " << std::setprecision(2) << e.deviation << "; "
+                        << (has_all_basis(opts) ? "all basis states: proof" : "not a proof") << ")\n";
                 }
-                out << " (" << e.stimuli_checked << " stimuli, max deviation " << std::setprecision(2)
-                    << e.deviation << "; " << (has_all_basis(opts) ? "all basis states: proof" : "not a proof")
-                    << ")\n";
+            } else if (r.rewriter_contradicted) {
+                out << "NOT equivalent: simulating the full circuits disagrees with the rewriter "
+                    << (r.rewrite == RewriteStatus::Proved ? "proof" : "residual check")
+                    << " (deviation " << std::setprecision(2) << e.deviation << "); this is a rewriter bug\n";
             } else {
-                out << "NOT equivalent: stimulus #" << e.failing_index << " (" << kind_name(e.failing_kind) << "): "
+                out << "NOT equivalent: stimulus #" << e.failing_index << " (" << kind_name(e.failing_kind) << ")"
+                    << (on_residual ? " on the rewriter's residual" : "") << ": "
                     << (e.mismatch == Mismatch::State ? "output is not a phase multiple of the input"
                                                       : "output phase differs from stimulus #0's")
                     << " (deviation " << std::setprecision(2) << e.deviation << ")\n";
             }
-            if (opts.rewrite)
-                out << "  gates: " << r.gates_a << " vs " << r.gates_b << ", after rewriting " << r.residual_a
+            if (r.rewrite == RewriteStatus::Proved || on_residual)
+                out << "  gates: " << r.gates_a << " vs " << r.gates_b << ", left after rewriting " << r.residual_a
                     << " vs " << r.residual_b << "\n";
         }
 
@@ -143,7 +161,11 @@ namespace qcanopy::cli {
             out << std::setprecision(17);
             out << "{\"a\":" << json_string(opts.file_a) << ",\"b\":" << json_string(opts.file_b)
                 << ",\"qubits\":" << r.qubits << ",\"equivalent\":" << (e.equivalent ? "true" : "false")
-                << ",\"method\":\"" << (r.proved_by_rewrite ? "rewrite" : "simulation") << "\""
+                << ",\"rewriter\":\"" << rewrite_name(r.rewrite) << "\"";
+            if (r.rewrite == RewriteStatus::Failed) out << ",\"rewriter_error\":" << json_string(r.rewrite_error);
+            out << ",\"proof_steps\":" << r.proof_steps
+                << ",\"rewriter_contradicted\":" << (r.rewriter_contradicted ? "true" : "false")
+                << ",\"phase_measured\":" << (r.phase_measured ? "true" : "false")
                 << ",\"gates\":[" << r.gates_a << "," << r.gates_b << "]"
                 << ",\"residual_gates\":[" << r.residual_a << "," << r.residual_b << "]"
                 << ",\"stimuli\":" << r.stimuli << ",\"stimuli_checked\":" << e.stimuli_checked
@@ -167,6 +189,7 @@ namespace qcanopy::cli {
             if (!seen.insert(key).second) throw UsageError("duplicate option " + key);
 
             if (key == "--no-rewrite") { opts.rewrite = false; continue; }
+            if (key == "--overlap") { opts.rewriter.overlap = true; continue; }
             if (key == "--json") { opts.json = true; continue; }
             if (key == "--quiet") { opts.quiet = true; continue; }
 
@@ -182,6 +205,7 @@ namespace qcanopy::cli {
         if (files.size() != 2)
             throw UsageError("expected two circuit files, got " + std::to_string(files.size()));
         if (opts.json && opts.quiet) throw UsageError("--json and --quiet cannot be combined");
+        if (opts.rewriter.overlap && !opts.rewrite) throw UsageError("--overlap needs the rewriter; drop --no-rewrite");
         if (opts.count == 0) throw UsageError("--count must be at least 1");
         if (!(opts.tol > 0.0)) throw UsageError("--tol must be positive");
         opts.file_a = files[0];
@@ -215,32 +239,48 @@ namespace qcanopy::cli {
         r.gates_a = a.size();
         r.gates_b = b.size();
 
-        // The miter is B^-1 A, so B is peel's reference R and A its candidate C: peeled
-        // phases land in A's global_phase and the residual miter keeps phase(A) - phase(B).
+        const EquivalenceChecker checker(opts.tol);
+
+        // Step 2: let the prover shrink the pair to residuals with A ~ B iff res_A ~ res_B.
         Circuit a_mid = a, b_mid = b;
         if (opts.rewrite) {
-            CircuitDAG da(a), db(b);
-            normalize(da);
-            normalize(db);
-            // peel() already removes the maximal prefix and suffix, so this runs at most twice
-            // today. It is the hook for a future rewriter, whose changes can expose new matches.
-            while (peel(/*R=*/db, /*C=*/da) > 0) {}
-            a_mid = da.to_circuit();
-            b_mid = db.to_circuit();
+            try {
+                PairProof proof = prove_pair(a, b, opts.rewriter);
+                r.rewrite = proof.proved ? RewriteStatus::Proved : RewriteStatus::Inconclusive;
+                r.proof_steps = proof.steps;
+                a_mid = std::move(proof.left);
+                b_mid = std::move(proof.right);
+            } catch (const RewriterError& e) {
+                r.rewrite = RewriteStatus::Failed;
+                r.rewrite_error = e.what();
+            }
         }
         r.residual_a = a_mid.size();
         r.residual_b = b_mid.size();
 
-        if (a_mid.gates.empty() && b_mid.gates.empty()) {
-            r.proved_by_rewrite = opts.rewrite;
+        // Step 3: simulate whatever is left.
+        if (r.rewrite == RewriteStatus::Proved) {
             r.equiv.equivalent = true;
-            r.equiv.global_phase = std::polar(1.0, a_mid.global_phase - b_mid.global_phase);
-            return r;
+        } else {
+            const Stimulus stim = build_stimulus(a.n, opts);
+            r.stimuli = stim.size();
+            r.equiv = checker.check(a_mid, b_mid, stim);
         }
 
-        const Stimulus stim = build_stimulus(a.n, opts);
-        r.stimuli = stim.size();
-        r.equiv = EquivalenceChecker(opts.tol).check(a_mid, b_mid, stim);
+        // Step 4: residual phases are meaningless, so measure the A-B phase on one state of
+        // the full pair. This also catches a wrong proof (a non-equivalent pair fails a
+        // Haar-random state with probability 1).
+        const bool rewritten = r.rewrite == RewriteStatus::Proved || r.rewrite == RewriteStatus::Inconclusive;
+        if (rewritten && r.equiv.equivalent) {
+            const EquivResult full = checker.check(a, b, haar_random_states(a.n, 1, opts.seed));
+            r.phase_measured = true;
+            if (full.equivalent) {
+                r.equiv.global_phase = full.global_phase;
+            } else {
+                r.rewriter_contradicted = true;
+                r.equiv = full;
+            }
+        }
         return r;
     }
 
@@ -254,6 +294,9 @@ namespace qcanopy::cli {
                 return kExitError;
             }
             const CheckOutcome r = check_circuits(a, b, opts);
+            if (r.rewrite == RewriteStatus::Failed && !opts.quiet)
+                err << "qcanopy check: warning: rewriter not used (" << r.rewrite_error
+                    << "); simulating the full circuits\n";
             if (opts.json) print_json(out, opts, r);
             else if (!opts.quiet) print_text(out, opts, r);
             return r.equiv.equivalent ? kExitEquivalent : kExitNotEquivalent;
