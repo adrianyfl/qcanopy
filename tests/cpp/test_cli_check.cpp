@@ -71,6 +71,32 @@ namespace {
         CHECK(rejects({"a", "b", "--overlap", "--no-rewrite"}));
     }
 
+    // ---- Args: the option parser every subcommand uses ----
+
+    Args args(std::vector<const char*> v) {
+        v.insert(v.begin(), "cmd");
+        return Args(static_cast<int>(v.size()), v.data(), {"--flag"}, {"--key"});
+    }
+
+    bool args_reject(std::vector<const char*> v) {
+        try { args(std::move(v)); } catch (const UsageError&) { return true; }
+        return false;
+    }
+
+    void test_args() {
+        const Args a = args({"x", "--key", "-1", "--flag", "y"});
+        CHECK((a.positional() == std::vector<std::string>{"x", "y"}));
+        CHECK(a.has("--flag") && a.get("--key") == std::string("-1") && !a.get("--other"));
+        CHECK(!a.help() && args({"x", "-h", "--bogus"}).help());
+        CHECK(args_reject({"--bogus"}));
+        CHECK(args_reject({"--flag", "--flag"}));
+        CHECK(args_reject({"--key", "1", "--key", "2"}));
+        CHECK(args_reject({"--key"}));
+        bool threw = false;
+        try { a.expect_positional(3, 3, "three files"); } catch (const UsageError&) { threw = true; }
+        CHECK(threw);
+    }
+
     void test_build_stimulus() {
         CheckOptions o;
         o.stimuli = {"haar", "basis", "all-basis"};
@@ -202,6 +228,7 @@ int main() {
     test_parse_defaults();
     test_parse_options();
     test_parse_errors();
+    test_args();
     test_build_stimulus();
     test_parse_pair_proof();
     test_fallback_when_rewriter_fails();

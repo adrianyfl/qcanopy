@@ -5,6 +5,7 @@
 //     <python> <dir>/run.py pair --left A.json --right B.json --input-format qcanopy-ir -o out.json
 //
 // as a child process (no shell), exchanging circuits as JSON IR v1 (dataset_io.hpp, write_ir).
+// run_rewriter() runs any run.py command the same way (`qcanopy rewrite classify` uses it).
 //
 // 1. What comes back. The prover removes common boundary regions, gate/inverse pairs and
 //    library identities from both circuits. Its verdict is "equivalent_up_to_global_phase"
@@ -30,6 +31,8 @@
 #include <iosfwd>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace qcanopy::cli {
 
@@ -51,14 +54,32 @@ namespace qcanopy::cli {
         bool proved = false;          // verdict was equivalent_up_to_global_phase
         bool cores_used = false;      // residuals are on SWAP-free core wires (point 2)
         std::size_t steps = 0;        // proof steps the prover recorded
-        Circuit left, right;          // residuals of A and B, global_phase 0 (point 1)
+        std::vector<std::string> step_kinds;   // "structural", "inverse_identity", ...
+        std::size_t residual_gates_left = 0, residual_gates_right = 0;
+        Circuit left, right;          // residuals of A and B, global_phase 0 (point 1);
+                                      // empty circuits unless convert_residuals was set
     };
 
-    // Runs the prover on A and B (same qubit count). Throws RewriterError (point 3).
-    PairProof prove_pair(const Circuit& a, const Circuit& b, const RewriterConfig& cfg);
+    // Runs the prover on A and B (same qubit count). Throws RewriterError (point 3). With
+    // convert_residuals false, residual gates are only counted, so any gate is accepted.
+    PairProof prove_pair(const Circuit& a, const Circuit& b, const RewriterConfig& cfg,
+                         bool convert_residuals = true);
 
     // Reads the prover's qrewrite-pair/1 output for n-qubit circuits. Throws RewriterError.
-    // Exposed for tests; prove_pair() calls it on the child's output file.
-    PairProof parse_pair_proof(std::istream& json, int n);
+    // Exposed for tests; prove_pair() calls it on the child's output.
+    PairProof parse_pair_proof(std::istream& json, int n, bool convert_residuals = true);
+
+    // What run.py printed: its exit status (0 completed/proved, 2 partial/inconclusive) and
+    // its JSON output.
+    struct RewriterRun {
+        int status = 0;
+        std::string output;
+    };
+
+    // Runs `run.py <command> <option> <file>... --input-format qcanopy-ir -o <out>`, writing
+    // each input circuit to a temp file passed after its option (e.g. {"--dag", &c}). Throws
+    // RewriterError on any other exit status or if the rewriter cannot be started.
+    RewriterRun run_rewriter(const RewriterConfig& cfg, const std::string& command,
+                             const std::vector<std::pair<std::string, const Circuit*>>& inputs);
 
 } // namespace qcanopy::cli

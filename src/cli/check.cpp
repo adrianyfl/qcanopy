@@ -1,23 +1,22 @@
 #include "check.hpp"
 
+#include "commands.hpp"
 #include "qcanopy/parser.hpp"
 #include "qcanopy/stimulus.hpp"
 
-#include <charconv>
 #include <cmath>
 #include <complex>
 #include <exception>
 #include <iomanip>
 #include <iostream>
-#include <locale>
 #include <set>
-#include <sstream>
 
 namespace qcanopy::cli {
 
     const char* const check_help =
-        "qcanopy check A.qasm B.qasm [options]\n"
-        "Check whether two OpenQASM 3.0 circuits are equal up to a global phase.\n"
+        "qcanopy check A B [options]\n"
+        "Check whether two circuits are equal up to a global phase. A and B are OpenQASM 3.0\n"
+        "files, or JSON IR files if their names end in .json. 'qcanopy A B' is short for this.\n"
         "\n"
         "  --stimulus LIST   Comma-separated input states to simulate (default haar,product):\n"
         "                      haar       Haar-random states (--count of them)\n"
@@ -44,24 +43,6 @@ namespace qcanopy::cli {
 
     namespace {
         const std::set<std::string> kStimulusKinds{"haar", "product", "basis", "all-basis"};
-
-        uint64_t parse_uint(const std::string& key, const std::string& s) {
-            uint64_t out = 0;
-            const auto r = std::from_chars(s.data(), s.data() + s.size(), out);
-            if (s.empty() || r.ec != std::errc{} || r.ptr != s.data() + s.size())
-                throw UsageError(key + " expects a non-negative integer, got '" + s + "'");
-            return out;
-        }
-
-        double parse_real(const std::string& key, const std::string& s) {
-            std::istringstream in(s);
-            in.imbue(std::locale::classic());
-            double out = 0.0;
-            in >> std::noskipws >> out;
-            if (!in || !in.eof() || !std::isfinite(out))
-                throw UsageError(key + " expects a finite number, got '" + s + "'");
-            return out;
-        }
 
         std::vector<std::string> parse_stimuli(const std::string& s) {
             std::vector<std::string> out;
@@ -96,18 +77,6 @@ namespace qcanopy::cli {
                 case Mismatch::None: break;
             }
             return "none";
-        }
-
-        std::string json_string(const std::string& s) {
-            std::ostringstream o;
-            o << '"';
-            for (const unsigned char c : s) {
-                if (c == '"' || c == '\\') o << '\\' << c;
-                else if (c < 0x20) o << "\\u" << std::hex << std::setw(4) << std::setfill('0') << int(c) << std::dec;
-                else o << c;
-            }
-            o << '"';
-            return o.str();
         }
 
         bool has_all_basis(const CheckOptions& opts) {
@@ -179,37 +148,26 @@ namespace qcanopy::cli {
     } // namespace
 
     CheckOptions parse_check_args(int argc, const char* const* argv) {
+        const Args args(argc, argv, {"--no-rewrite", "--overlap", "--json", "--quiet"},
+                        {"--stimulus", "--count", "--seed", "--tol"});
         CheckOptions opts;
-        std::vector<std::string> files;
-        std::set<std::string> seen;
-        for (int i = 1; i < argc; ++i) {
-            const std::string key = argv[i];
-            if (key == "--help") { opts.help = true; return opts; }
-            if (key.rfind("--", 0) != 0) { files.push_back(key); continue; }
-            if (!seen.insert(key).second) throw UsageError("duplicate option " + key);
+        if (args.help()) { opts.help = true; return opts; }
+        args.expect_positional(2, 2, "two circuit files");
+        opts.file_a = args.positional()[0];
+        opts.file_b = args.positional()[1];
+        opts.rewrite = !args.has("--no-rewrite");
+        opts.rewriter.overlap = args.has("--overlap");
+        opts.json = args.has("--json");
+        opts.quiet = args.has("--quiet");
+        if (auto v = args.get("--stimulus")) opts.stimuli = parse_stimuli(*v);
+        if (auto v = args.get("--count")) opts.count = static_cast<std::size_t>(parse_uint("--count", *v));
+        if (auto v = args.get("--seed")) opts.seed = parse_uint("--seed", *v);
+        if (auto v = args.get("--tol")) opts.tol = parse_real("--tol", *v);
 
-            if (key == "--no-rewrite") { opts.rewrite = false; continue; }
-            if (key == "--overlap") { opts.rewriter.overlap = true; continue; }
-            if (key == "--json") { opts.json = true; continue; }
-            if (key == "--quiet") { opts.quiet = true; continue; }
-
-            if (key != "--stimulus" && key != "--count" && key != "--seed" && key != "--tol")
-                throw UsageError("unknown option " + key);
-            if (i + 1 == argc) throw UsageError("missing value for " + key);
-            const std::string v = argv[++i];
-            if (key == "--stimulus") opts.stimuli = parse_stimuli(v);
-            else if (key == "--count") opts.count = static_cast<std::size_t>(parse_uint(key, v));
-            else if (key == "--seed") opts.seed = parse_uint(key, v);
-            else opts.tol = parse_real(key, v);
-        }
-        if (files.size() != 2)
-            throw UsageError("expected two circuit files, got " + std::to_string(files.size()));
         if (opts.json && opts.quiet) throw UsageError("--json and --quiet cannot be combined");
         if (opts.rewriter.overlap && !opts.rewrite) throw UsageError("--overlap needs the rewriter; drop --no-rewrite");
         if (opts.count == 0) throw UsageError("--count must be at least 1");
         if (!(opts.tol > 0.0)) throw UsageError("--tol must be positive");
-        opts.file_a = files[0];
-        opts.file_b = files[1];
         return opts;
     }
 
@@ -286,8 +244,8 @@ namespace qcanopy::cli {
 
     int run_check(const CheckOptions& opts, std::ostream& out, std::ostream& err) {
         try {
-            const Circuit a = parse_qasm_file(opts.file_a);
-            const Circuit b = parse_qasm_file(opts.file_b);
+            const Circuit a = load_circuit(opts.file_a);
+            const Circuit b = load_circuit(opts.file_b);
             if (a.n != b.n) {
                 err << "qcanopy check: " << opts.file_a << " has " << a.n << " qubits but " << opts.file_b
                     << " has " << b.n << "\n";
@@ -318,7 +276,7 @@ namespace qcanopy::cli {
             std::cerr << "qcanopy check: " << e.what() << "\nTry 'qcanopy check --help'.\n";
             return kExitError;
         }
-        if (opts.help) { std::cout << check_help; return kExitEquivalent; }
+        if (opts.help) { std::cout << check_help; return kExitOk; }
         return run_check(opts, std::cout, std::cerr);
     }
 

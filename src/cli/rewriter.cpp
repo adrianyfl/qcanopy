@@ -161,7 +161,7 @@ namespace qcanopy::cli {
         return cfg;
     }
 
-    PairProof parse_pair_proof(std::istream& in, int n) {
+    PairProof parse_pair_proof(std::istream& in, int n, bool convert_residuals) {
         try {
             const json::Value root = json::Parser(in).parse();
             if (root.field("schema").str() != "qrewrite-pair/1")
@@ -177,11 +177,16 @@ namespace qcanopy::cli {
             PairProof out;
             out.proved = verdict == "equivalent_up_to_global_phase";
             out.cores_used = cores.number != 0;
-            out.steps = proof.field("proof").items().size();
-            out.left = residual_to_circuit(proof.field("residual_left"), n);
-            out.right = residual_to_circuit(proof.field("residual_right"), n);
-            if (out.proved && (out.left.size() || out.right.size()))
+            for (const auto& step : proof.field("proof").items()) out.step_kinds.push_back(step.field("kind").str());
+            out.steps = out.step_kinds.size();
+            out.residual_gates_left = proof.field("residual_left").field("nodes").items().size();
+            out.residual_gates_right = proof.field("residual_right").field("nodes").items().size();
+            if (out.proved && (out.residual_gates_left || out.residual_gates_right))
                 throw RewriterError("proved verdict with a non-empty residual");
+            if (convert_residuals) {
+                out.left = residual_to_circuit(proof.field("residual_left"), n);
+                out.right = residual_to_circuit(proof.field("residual_right"), n);
+            }
             return out;
         } catch (const RewriterError&) {
             throw;
@@ -190,42 +195,49 @@ namespace qcanopy::cli {
         }
     }
 
-    PairProof prove_pair(const Circuit& a, const Circuit& b, const RewriterConfig& cfg) {
-        if (a.n != b.n) throw RewriterError("circuits have different qubit counts");
+    RewriterRun run_rewriter(const RewriterConfig& cfg, const std::string& command,
+                             const std::vector<std::pair<std::string, const Circuit*>>& inputs) {
 #ifdef _WIN32
-        (void)cfg;
+        (void)cfg; (void)command; (void)inputs;
         throw RewriterError("running the rewriter is only implemented on POSIX systems");
 #else
         const fs::path run_py = fs::path(cfg.dir) / "run.py";
         if (!fs::is_regular_file(run_py)) throw RewriterError("rewriter not found at " + run_py.string());
 
         TempDir tmp;
-        const fs::path left = tmp.path / "a.json", right = tmp.path / "b.json";
-        const fs::path out = tmp.path / "pair.json", err = tmp.path / "stderr.txt";
-        for (const auto& [path, circuit] : {std::pair{left, &a}, std::pair{right, &b}}) {
+        std::vector<std::string> args{cfg.python, run_py.string(), command};
+        for (std::size_t i = 0; i < inputs.size(); ++i) {
+            const fs::path path = tmp.path / ("input" + std::to_string(i) + ".json");
             std::ofstream f(path);
-            testgen::write_ir(f, *circuit);
+            testgen::write_ir(f, *inputs[i].second);
             f.close();
             if (!f) throw RewriterError("cannot write " + path.string());
+            args.push_back(inputs[i].first);
+            args.push_back(path.string());
         }
-
-        std::vector<std::string> args{cfg.python, run_py.string(), "pair",
-                                      "--left", left.string(), "--right", right.string(),
-                                      "--input-format", "qcanopy-ir", "-o", out.string()};
+        const fs::path out = tmp.path / "output.json", err = tmp.path / "stderr.txt";
+        for (const char* a : {"--input-format", "qcanopy-ir", "-o"}) args.push_back(a);
+        args.push_back(out.string());
         if (cfg.overlap) args.push_back("--enable-overlap");
 
-        // run.py: 0 proved, 2 inconclusive, 1 input/IO error.
+        // run.py: 0 completed/proved, 2 partial/inconclusive, 1 input/IO error.
         const int status = spawn_and_wait(args, err);
         if (status != 0 && status != 2) {
             const std::string why = last_line(read_file(err));
             throw RewriterError("rewriter exited with status " + std::to_string(status) + (why.empty() ? "" : ": " + why));
         }
-        std::ifstream result(out, std::ios::binary);
-        if (!result) throw RewriterError("rewriter produced no output");
-        PairProof proof = parse_pair_proof(result, a.n);
-        if (proof.proved != (status == 0)) throw RewriterError("rewriter exit status disagrees with its verdict");
-        return proof;
+        if (!fs::is_regular_file(out)) throw RewriterError("rewriter produced no output");
+        return {status, read_file(out)};
 #endif
+    }
+
+    PairProof prove_pair(const Circuit& a, const Circuit& b, const RewriterConfig& cfg, bool convert_residuals) {
+        if (a.n != b.n) throw RewriterError("circuits have different qubit counts");
+        const RewriterRun run = run_rewriter(cfg, "pair", {{"--left", &a}, {"--right", &b}});
+        std::istringstream in(run.output);
+        PairProof proof = parse_pair_proof(in, a.n, convert_residuals);
+        if (proof.proved != (run.status == 0)) throw RewriterError("rewriter exit status disagrees with its verdict");
+        return proof;
     }
 
 } // namespace qcanopy::cli

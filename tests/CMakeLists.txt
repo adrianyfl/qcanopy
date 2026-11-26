@@ -26,6 +26,15 @@ endif()
 add_test(NAME test_check_cli COMMAND ${CMAKE_COMMAND}
   "-DQCANOPY=$<TARGET_FILE:qcanopy>" "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
   -P "${CMAKE_CURRENT_SOURCE_DIR}/test_check_cli.cmake")
+if(Python3_Interpreter_FOUND)
+  set(QCANOPY_TEST_HAVE_PYTHON ON)
+else()
+  set(QCANOPY_TEST_HAVE_PYTHON OFF)
+endif()
+add_test(NAME test_cli_commands COMMAND ${CMAKE_COMMAND}
+  "-DQCANOPY=$<TARGET_FILE:qcanopy>" "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+  "-DHAVE_PYTHON=${QCANOPY_TEST_HAVE_PYTHON}"
+  -P "${CMAKE_CURRENT_SOURCE_DIR}/test_cli_commands.cmake")
 add_test(NAME test_generator_cli COMMAND ${CMAKE_COMMAND}
   "-DGENERATOR=$<TARGET_FILE:qcanopy_generate>" "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
   -P "${CMAKE_CURRENT_SOURCE_DIR}/test_cli.cmake")

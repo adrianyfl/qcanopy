@@ -1,0 +1,135 @@
+# End-to-end test of the qcanopy subcommands other than check's option handling
+# (test_check_cli.cmake). Run with -DQCANOPY=<binary> -DTEST_ROOT=<dir>.
+if(NOT DEFINED QCANOPY OR NOT DEFINED TEST_ROOT)
+  message(FATAL_ERROR "Missing test paths")
+endif()
+string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef run_id)
+set(root "${TEST_ROOT}/cli-commands-${run_id}")
+file(MAKE_DIRECTORY "${root}")
+
+set(header "OPENQASM 3.0;\ninclude \"stdgates.inc\";\nqubit[2] q;\n")
+file(WRITE "${root}/bell.qasm" "${header}h q[0];\ncx q[0],q[1];\n")
+file(WRITE "${root}/bell_t.qasm" "${header}gphase(0.5);\nh q[0];\nrz(0.3) q[1];\nrz(-0.3) q[1];\ncx q[0],q[1];\nt q[0];\n")
+file(WRITE "${root}/bell_t_plain.qasm" "${header}h q[0];\ncx q[0],q[1];\nt q[0];\n")  # = bell_t up to phase
+file(WRITE "${root}/bell_z.qasm" "${header}h q[0];\ncx q[0],q[1];\nz q[0];\n")
+file(WRITE "${root}/cx.qasm" "${header}cx q[0],q[1];\n")
+file(WRITE "${root}/ss.qasm" "${header}s q[1];\ns q[1];\n")
+
+# expect(STATUS ARGS...): run qcanopy, require the exit status, keep stdout/stderr.
+function(expect status)
+  execute_process(COMMAND "${QCANOPY}" ${ARGN} WORKING_DIRECTORY "${root}"
+    RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+  if(NOT result STREQUAL "${status}")
+    message(FATAL_ERROR "qcanopy ${ARGN}: expected exit ${status}, got ${result}\n${output}${error}")
+  endif()
+  set(out "${output}" PARENT_SCOPE)
+  set(err "${error}" PARENT_SCOPE)
+endfunction()
+function(require text pattern)
+  if(NOT text MATCHES "${pattern}")
+    message(FATAL_ERROR "expected output matching '${pattern}', got:\n${text}")
+  endif()
+endfunction()
+
+# Top level.
+expect(0 --version)
+require("${out}" "^qcanopy [0-9]")
+expect(0 --help)
+require("${out}" "check A B")
+expect(2)
+expect(2 frobnicate)
+expect(0 bell.qasm bell.qasm)                 # `qcanopy A B` is check
+
+# parse: summary, conversion both ways, failures.
+expect(0 parse bell.qasm bell_t.qasm)
+require("${out}" "bell.qasm: qubits=2 gates=2 global_phase=0\n")
+require("${out}" "parsed 2 of 2 files")
+expect(0 parse bell_t.qasm --emit ir)
+file(WRITE "${root}/bell_t.json" "${out}")
+expect(0 parse bell_t.json --emit qasm)
+require("${out}" "OPENQASM 3.0;")
+require("${out}" "rz\\(0\\.[0-9]+\\) q\\[1\\];")   # written at full precision: 0.29999999999999999
+expect(0 parse bell_t.json)
+require("${out}" "qubits=2 gates=5 global_phase=0.5")
+expect(0 check bell_t.json bell_t.qasm --no-rewrite)  # IR input works for check too
+file(WRITE "${root}/bad.qasm" "${header}frobnicate q[0];\n")
+expect(1 parse bell.qasm bad.qasm)
+require("${err}" "bad.qasm:[0-9]+:[0-9]+:")
+expect(2 parse)
+expect(2 parse bell.qasm bell_t.qasm --emit ir)  # --emit takes one file
+expect(2 parse bell.qasm --emit svg)
+
+# rewrite normalize / peel (C++).
+expect(0 rewrite normalize ss.qasm)
+require("${out}" "z q\\[1\\];")
+expect(0 rewrite normalize bell_t.qasm --emit ir)
+require("${out}" "\"gates\":\\[{\"name\":\"h\"")
+expect(0 rewrite peel bell_t.qasm bell_z.qasm)
+require("${out}" "removed 2 gate pairs")
+require("${out}" "t q\\[0\\];")
+require("${out}" "z q\\[0\\];")
+expect(0 rewrite peel bell_t.qasm bell_z.qasm --emit ir)
+require("${out}" "^{\"peeled_pairs\":2,")
+expect(2 rewrite)
+expect(2 rewrite frob)
+expect(0 rewrite --help)
+expect(2 rewrite peel bell.qasm)
+
+# rewrite prove / classify (Python): only when the rewriter can run.
+if(HAVE_PYTHON)
+  expect(0 rewrite prove bell_t.qasm bell_t_plain.qasm)
+  require("${out}" "^proved")
+  expect(1 rewrite prove bell_t.qasm bell_z.qasm)
+  require("${out}" "^inconclusive")
+  expect(0 rewrite prove bell_t.qasm bell_t_plain.qasm --json)
+  require("${out}" "\"schema\": \"qrewrite-pair/1\"")
+  expect(0 rewrite classify bell_t.qasm)
+  require("${out}" "matches")
+endif()
+set(saved_python "$ENV{QCANOPY_PYTHON}")
+set(ENV{QCANOPY_PYTHON} "/nonexistent/qcanopy-test-python")
+expect(2 rewrite prove bell_t.qasm bell.qasm)
+require("${err}" "cannot run")
+set(ENV{QCANOPY_PYTHON} "${saved_python}")
+
+# sim.
+expect(0 sim bell.qasm)
+require("${out}" "\\|00>  \\+0.707107 \\+0.000000i   p=0.500000")
+require("${out}" "\\|11>")
+require("${out}" "2 of 4 basis states")
+expect(0 sim cx.qasm --input basis:1 --json)      # |01> -> |11>
+require("${out}" "\"amplitudes\":\\[{\"index\":3,\"bits\":\"11\",\"re\":1,")
+expect(0 sim bell.qasm --input haar:7 --top 1)
+require("${out}" "3 more")
+expect(2 sim bell.qasm --input basis:4)
+expect(2 sim bell.qasm --input gaussian:1)
+expect(2 sim bell.qasm --all --top 2)
+
+# generate, then check every pair against its label.
+expect(0 generate --format qasm --output ds --qubits 3 --gates 30 --pairs 6 --seed 5)
+require("${out}" "Generated 6 pairs")
+expect(2 generate --format qasm --output ds)         # refuses a nonempty destination
+expect(2 generate --output ds2 extra)
+file(STRINGS "${root}/ds/manifest.jsonl" cases)
+set(checked 0)
+foreach(line IN LISTS cases)
+  # Regexes rather than string(JSON), which needs CMake 3.19 (the project allows 3.18).
+  if(NOT line MATCHES "\"record_type\":\"case\"")
+    continue()
+  endif()
+  string(REGEX MATCH "\"expected_relation\":\"([a-z_]+)\"" _ "${line}")
+  set(relation "${CMAKE_MATCH_1}")
+  string(REGEX MATCH "\"files\":{\"a\":\"([^\"]+)\",\"b\":\"([^\"]+)\"" _ "${line}")
+  set(fa "${CMAKE_MATCH_1}")
+  set(fb "${CMAKE_MATCH_2}")
+  math(EXPR checked "${checked} + 1")
+  if(relation STREQUAL "equivalent")
+    set(want 0)
+  else()
+    set(want 1)
+  endif()
+  expect(${want} check "ds/${fa}" "ds/${fb}" --quiet)
+endforeach()
+if(NOT checked EQUAL 6)
+  message(FATAL_ERROR "expected 6 cases in the manifest, checked ${checked}")
+endif()

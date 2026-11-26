@@ -2,7 +2,8 @@
 //
 //   qcanopy check A.qasm B.qasm [options]
 //
-// 1. Both files are parsed (parser.hpp) and must have the same qubit count.
+// 1. Both files are loaded (OpenQASM, or JSON IR if *.json; common.hpp) and must have the
+//    same qubit count.
 // 2. Unless --no-rewrite is given, the pair goes to the Python pair prover (rewriter.hpp),
 //    which removes common boundaries, gate/inverse pairs and library identities. If it proves
 //    the pair, no stimuli are simulated. If it is inconclusive, only the residual it leaves
@@ -22,6 +23,7 @@
 
 #pragma once
 
+#include "common.hpp"
 #include "qcanopy/equiv.hpp"
 #include "qcanopy/ir.hpp"
 #include "rewriter.hpp"
@@ -34,17 +36,6 @@
 #include <vector>
 
 namespace qcanopy::cli {
-
-    // Exit statuses shared by every subcommand.
-    inline constexpr int kExitEquivalent = 0;
-    inline constexpr int kExitNotEquivalent = 1;
-    inline constexpr int kExitError = 2;
-
-    // Bad command line. what() is the message without the "qcanopy check:" prefix.
-    class UsageError : public std::invalid_argument {
-    public:
-        using std::invalid_argument::invalid_argument;
-    };
 
     // all-basis needs 2^n states of 2^n amplitudes (n = 12 -> 256 MiB), so it is refused above this.
     inline constexpr int kMaxAllBasisQubits = 12;
@@ -98,7 +89,6 @@ namespace qcanopy::cli {
     // (errors to `err`). Returns an exit status.
     int run_check(const CheckOptions& opts, std::ostream& out, std::ostream& err);
 
-    // Entry point from main.cpp: parse, run, report. Returns an exit status.
-    int check_main(int argc, const char* const* argv);
+    // check_main() is declared in commands.hpp.
 
 } // namespace qcanopy::cli

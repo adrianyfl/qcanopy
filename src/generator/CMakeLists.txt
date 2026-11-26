@@ -16,5 +16,6 @@ if(GIT_FOUND)
   endif()
 endif()
 target_compile_definitions(qcanopy_generator PRIVATE QCANOPY_SOURCE_COMMIT="${QCANOPY_SOURCE_COMMIT}")
+# Same as `qcanopy generate`; kept at this path for existing docs and scripts (src/cli).
 add_executable(qcanopy_generate ${PROJECT_SOURCE_DIR}/tools/generate_cases.cpp)
-target_link_libraries(qcanopy_generate PRIVATE qcanopy::generator qcanopy_warnings)
+target_link_libraries(qcanopy_generate PRIVATE qcanopy_cli qcanopy_warnings)

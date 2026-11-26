@@ -25,6 +25,37 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
+## Check two circuits
+
+The `qcanopy` command-line tool (`build/src/cli/qcanopy`) checks whether two
+circuits are equal up to a global phase:
+
+```sh
+./build/src/cli/qcanopy check a.qasm b.qasm      # or just: qcanopy a.qasm b.qasm
+```
+
+`check` runs the whole pipeline: it parses both files, lets the
+[Python rewriter](rewriting/README.md) remove what it can prove equal, and simulates
+whatever is left on random (or, with `--stimulus all-basis`, all basis) input states.
+Exit status: 0 equivalent, 1 not equivalent, 2 error. Run `qcanopy check --help` for
+the options. If Python 3.9+ is missing, `check` warns and simulates the full circuits.
+
+Each stage can also be used on its own:
+
+| Command | What it does |
+|---|---|
+| `qcanopy parse FILE... [--emit qasm\|ir]` | Summarize circuits, or convert between OpenQASM 3.0 and JSON IR |
+| `qcanopy rewrite normalize FILE` | C++ normalization: canonical gates, fused rotations, cancelled inverses |
+| `qcanopy rewrite peel A B` | C++ normalization + common prefix/suffix peeling; prints both residuals |
+| `qcanopy rewrite prove A B` | Python pair prover: proved (exit 0) or inconclusive (exit 1) |
+| `qcanopy rewrite classify FILE` | Python boundary classifier |
+| `qcanopy sim FILE [--input SPEC]` | Simulate a circuit and print its most likely output amplitudes |
+| `qcanopy generate ...` | Generate labeled test-case pairs (same options as `qcanopy_generate`) |
+
+Circuit files are OpenQASM 3.0, or JSON IR v1 if their names end in `.json`.
+`qcanopy_parse` and `qcanopy_generate` remain available and behave like
+`qcanopy parse` and `qcanopy generate`.
+
 ## Generate your first dataset
 
 On Linux/macOS with a single-configuration build:
