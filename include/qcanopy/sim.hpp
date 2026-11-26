@@ -34,6 +34,7 @@ namespace qcanopy {
         Haar,       // Haar-random state
         Product,    // random product state
         Basis,      // computational basis state
+        Choi,       // maximally entangled Choi state on 2n qubits (see qcanopy/equiv.hpp)
     };
 
     // A batch of input states for one circuit width, possibly mixing several kinds.
