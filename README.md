@@ -1,21 +1,23 @@
 # QCanopy: Batched, Reuse-Aware GPU Simulation for Large-Scale Quantum Circuit Equivalence Checking
 
-QCanopy provides a quantum circuit IR and dependency DAG, normalization and
-prefix/suffix peeling passes, a deterministic circuit-pair generator, and a
-parser for the generator's OpenQASM 3.0 files.
-`qcanopy_generate` creates labeled equivalent and non-equivalent pairs for
-equivalence-checker tests and experiments on shared computation.
-`qcanopy_parse` and the `qcanopy::parser` library read those files back
-into the IR.
+QCanopy checks whether two quantum circuits are equal up to a global phase. The
+`qcanopy` command-line tool runs the whole pipeline in one step: it parses both
+circuits, uses rewriting to remove the parts it can prove equal, and simulates only
+what is left. Each stage (parser, rewriter, simulator, test-case generator) can also
+be run on its own, or used as a C++ library.
 
-**New users:** follow the [test-case generator quick start](docs/generator_quickstart.md)
-to build the tool, generate a dataset, and understand its files, then the
-[parser quick start](docs/parser_quickstart.md) to read the dataset back.
+```sh
+$ qcanopy check a.qasm b.qasm
+equivalent up to global phase e^{i*0} (proved by the rewriter in 3 steps)
+  gates: 100 vs 101, left after rewriting 0 vs 0
+```
 
 ## Build
 
 Requirements: CMake 3.18+ and a C++17 compiler with working `<filesystem>` and
-integer `from_chars` support. The generator runs on the CPU and does not require CUDA.
+integer `from_chars` support. Python 3.9+ (standard library only) is optional: `check`
+uses it to run the [rewriter](rewriting/README.md), and falls back to plain simulation
+without it. Everything currently runs on the CPU; CUDA is not required.
 
 From the repository root:
 
@@ -25,103 +27,220 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-## Check two circuits
+The tool is `build/src/cli/qcanopy`. The examples below assume it is on your `PATH`,
+for example after `export PATH="$PWD/build/src/cli:$PATH"`.
 
-The `qcanopy` command-line tool (`build/src/cli/qcanopy`) checks whether two
-circuits are equal up to a global phase:
+## Quick start
+
+Generate a labeled dataset of 32 circuit pairs (16 equivalent, 16 not), then check
+some of them:
 
 ```sh
-./build/src/cli/qcanopy check a.qasm b.qasm      # or just: qcanopy a.qasm b.qasm
+qcanopy generate --format qasm --output generated/quickstart-qasm --seed 759
+cd generated/quickstart-qasm/cases
+qcanopy check case-000000.a.qasm case-000000.b.qasm
+qcanopy check case-000003.a.qasm case-000003.b.qasm
 ```
 
-`check` runs the whole pipeline: it parses both files, lets the
-[Python rewriter](rewriting/README.md) remove what it can prove equal, and simulates
-whatever is left on random (or, with `--stimulus all-basis`, all basis) input states.
-Exit status: 0 equivalent, 1 not equivalent, 2 error. Run `qcanopy check --help` for
-the options. If Python 3.9+ is missing, `check` warns and simulates the full circuits.
+```text
+NOT equivalent: stimulus #0 (haar) on the rewriter's residual: output is not a phase multiple of the input (deviation 1.3)
+  gates: 100 vs 101, left after rewriting 0 vs 1
+equivalent up to global phase e^{i*0} (proved by the rewriter in 3 steps)
+  gates: 100 vs 101, left after rewriting 0 vs 0
+```
 
-Each stage can also be used on its own:
+Each pair's expected answer is in `generated/quickstart-qasm/manifest.jsonl`
+(`expected_relation`). `qcanopy A B` is short for `qcanopy check A B`.
+
+## Commands
 
 | Command | What it does |
 |---|---|
-| `qcanopy parse FILE... [--emit qasm\|ir]` | Summarize circuits, or convert between OpenQASM 3.0 and JSON IR |
-| `qcanopy rewrite normalize FILE` | C++ normalization: canonical gates, fused rotations, cancelled inverses |
-| `qcanopy rewrite peel A B` | C++ normalization + common prefix/suffix peeling; prints both residuals |
-| `qcanopy rewrite prove A B` | Python pair prover: proved (exit 0) or inconclusive (exit 1) |
-| `qcanopy rewrite classify FILE` | Python boundary classifier |
-| `qcanopy sim FILE [--input SPEC]` | Simulate a circuit and print its most likely output amplitudes |
-| `qcanopy generate ...` | Generate labeled test-case pairs (same options as `qcanopy_generate`) |
+| `qcanopy check A B` | **Main command.** Equivalence check up to global phase: parse, rewrite, simulate |
+| `qcanopy parse FILE...` | Summarize circuits, or convert between OpenQASM 3.0 and JSON IR |
+| `qcanopy rewrite normalize FILE` | C++ normalization of one circuit |
+| `qcanopy rewrite peel A B` | C++ normalization, then common prefix/suffix removal |
+| `qcanopy rewrite prove A B` | Python pair prover on its own |
+| `qcanopy rewrite classify FILE` | Python boundary classifier on its own |
+| `qcanopy sim FILE` | Simulate a circuit and print its output amplitudes |
+| `qcanopy generate ...` | Generate labeled equivalent / non-equivalent test-case pairs |
 
-Circuit files are OpenQASM 3.0, or JSON IR v1 if their names end in `.json`.
-`qcanopy_parse` and `qcanopy_generate` remain available and behave like
-`qcanopy parse` and `qcanopy generate`.
+Every command takes `--help`. Circuit files are OpenQASM 3.0, or JSON IR v1 if their
+names end in `.json`. Exit status is 0 on success and 2 on a usage, parse or I/O error;
+commands with a yes/no answer use 1 for "no" (see below).
 
-## Generate your first dataset
+### `qcanopy check`
 
-On Linux/macOS with a single-configuration build:
-
-```sh
-./build/src/generator/qcanopy_generate --format ir --output generated/quickstart-ir --seed 759
-./build/src/generator/qcanopy_generate --format qasm --output generated/quickstart-qasm --seed 759
+```text
+qcanopy check A B [options]
 ```
 
-For Windows executable paths and PowerShell examples, see the
-[quick start](docs/generator_quickstart.md#2-generate-test-cases).
+`check` runs four steps:
 
-Each command produces **32 pairs: 16 equivalent and 16 non-equivalent**, using
-4 qubits and 100 base gates by default. Each dataset contains 64 circuit files
-and a `manifest.jsonl` with labels, seeds, construction proofs, verification
-status, and raw/normalized sharing measurements. Both formats represent the
-same cases when generation arguments match. Each output directory must be absent
-or empty.
+1. **Parse** both files. They must have the same number of qubits.
+2. **Rewrite.** The Python pair prover (`rewriting/run.py pair`) removes common
+   boundaries, gate/inverse pairs and verified library identities from both circuits.
+   If nothing is left, the pair is proved equivalent.
+3. **Simulate** whatever the rewriter left on a batch of input states (by default 8
+   Haar-random and 8 random product states). The leftovers are equivalent exactly when
+   the original circuits are, so only they need simulating.
+4. **Measure the phase.** The rewriter does not track global phase, so after an
+   "equivalent" answer the full circuits are run on one random state to measure it.
+   This run also catches a wrong rewriter proof.
 
-## Parse a generated dataset
+| Option | Meaning |
+|---|---|
+| `--stimulus LIST` | Input states, comma-separated (default `haar,product`): `haar`, `product`, `basis` (random basis states), `all-basis` (every basis state; at most 12 qubits) |
+| `--count N` | States per random kind (default 8) |
+| `--seed UINT64` | Seed for the random states (default 759) |
+| `--tol X` | Tolerance on the residual norm and phase (default 1e-9) |
+| `--no-rewrite` | Skip the rewriter and simulate the full circuits |
+| `--overlap` | Let the rewriter try overlapping rule substitutions (slower, proves more) |
+| `--json` | Print the result as one JSON object |
+| `--quiet` | Print nothing; report the answer by exit status only |
+
+**Exit status:** 0 equivalent, 1 not equivalent, 2 error.
+
+**How sure is the answer?**
+
+- **Not equivalent** is always definitive. The output names the input state that
+  told the circuits apart.
+- **Equivalent** is a proof when the rewriter proved it, or when `--stimulus all-basis`
+  passed. With random stimuli it means no state told the circuits apart; for
+  non-equivalent circuits that happens with probability zero (up to `--tol`). The
+  output says "not a proof" in this case.
+
+**Without the rewriter.** If Python is missing or the rewriter fails, `check` prints a
+warning on stderr and simulates the full circuits, so the answer is still correct.
+`QCANOPY_PYTHON` sets the interpreter (default: the Python 3 found when CMake ran)
+and `QCANOPY_REWRITER` sets the directory holding `run.py` (default: `rewriting/` in
+this repository). The rewriter only runs on Linux and macOS.
+
+### `qcanopy parse`
 
 ```sh
-./build/src/parser/qcanopy_parse generated/quickstart-qasm/cases/*.qasm
+qcanopy parse cases/*.qasm                     # one summary line per file
+qcanopy parse case-000000.a.qasm --emit ir     # OpenQASM -> JSON IR
+qcanopy parse circuit.json --emit qasm         # JSON IR -> OpenQASM
 ```
 
-This prints the qubit count, gate count, and global phase of each circuit, then
-`parsed 64 of 64 files`. From C++, include `qcanopy/parser.hpp` and link
-`qcanopy::parser`:
+The summary prints each file's qubit count, gate count and global phase, then
+`parsed N of M files`. Exit status: 0 if every file parsed, 1 if any failed, 2 on a
+usage error. Parse errors read `file:line:column: message`.
+
+The parser accepts OpenQASM 3.0 as the generator writes it (`OPENQASM 3.0;`,
+`include "stdgates.inc";`, one `qubit[n]` register, the gates `id h x y z s sdg t tdg
+rx ry rz p U cx cz swap`, and `gphase`), plus comments and arithmetic such as `pi/2`.
+It does not read OpenQASM 2.0, other gates, or circuits with more than 32 qubits.
+
+### `qcanopy rewrite`
+
+| Subcommand | Output |
+|---|---|
+| `normalize FILE [--emit qasm\|ir]` | The circuit with canonical gate spellings, fused rotations and neighbouring inverses cancelled. Exact, including global phase. |
+| `peel A B [--emit qasm\|ir] [--no-normalize]` | What is left of each circuit after normalizing and removing their common prefix and suffix. |
+| `prove A B [--overlap] [--json]` | The Python prover's verdict and proof steps. Exit 0 proved, 1 inconclusive. |
+| `classify FILE [--overlap] [--json]` | A summary of the Python classifier's matches and regions. Exit 0 complete, 1 stopped early. |
+
+`normalize` and `peel` are C++ passes ([peeling algorithm](src/rewrite/algorithm.md)).
+`prove` and `classify` run the [Python rewriting module](rewriting/README.md);
+`--json` prints its full output. An inconclusive `prove` does not mean the circuits
+differ: use `check` for an answer.
+
+### `qcanopy sim`
+
+```sh
+qcanopy sim circuit.qasm                       # from |0...0>, 16 most likely states
+qcanopy sim circuit.qasm --input basis:5 --all
+qcanopy sim circuit.qasm --input haar:42 --json
+```
+
+`--input` is `zero` (default), `basis:INDEX`, `haar:SEED` or `product:SEED`. Basis
+states are written `|q[n-1] ... q[0]>`. `--top K` shows the K most likely states
+(default 16) and `--all` shows every state with nonzero probability. The state vector
+takes 2^n × 16 bytes of memory (16 GiB at 30 qubits).
+
+### `qcanopy generate`
+
+```sh
+qcanopy generate --format qasm --output generated/run --qubits 4 --gates 100 --pairs 32 --seed 759
+```
+
+Writes labeled circuit pairs as OpenQASM 3.0 or JSON IR v1, plus a `manifest.jsonl`
+with labels, seeds, construction proofs, verification status and sharing measurements.
+The output directory must be absent or empty.
+
+- Control qubit count (1–32), base gate count, gate set, angle mode, label balance and seed.
+- Plant shared prefixes within pairs and across groups of pairs.
+- Dense verification checks every label through 5 qubits; larger cases keep their
+  construction proofs and record that numerical verification was skipped.
+
+Gate count is not dependency depth, and a shared prefix does not make two circuits
+equivalent. See the [generator quick start](docs/generator_quickstart.md) and the
+[generator reference](docs/test_case_generator.md) for every option.
+
+`qcanopy_generate` (in `build/src/generator/`) and `qcanopy_parse` (in
+`build/src/parser/`) are still built for existing scripts. They behave exactly like
+`qcanopy generate` and `qcanopy parse`.
+
+## Using the C++ libraries
+
+Each stage is a CMake target you can link:
+
+| Target | Header | Provides |
+|---|---|---|
+| `qcanopy::ir` | `qcanopy/ir.hpp`, `qcanopy/dag.hpp` | `Circuit`, gates, and the dependency DAG `CircuitDAG` |
+| `qcanopy::parser` | `qcanopy/parser.hpp` | `parse_qasm_file()`, `parse_qasm_file_dag()` |
+| `qcanopy::rewrite` | `qcanopy/normalize.hpp`, `qcanopy/peel.hpp` | `normalize()`, `peel()` |
+| `qcanopy::sim` | `qcanopy/sim.hpp` | `Simulator`, `StateVector`, `Stimulus` |
+| `qcanopy::equiv` | `qcanopy/equiv.hpp`, `qcanopy/stimulus.hpp` | `EquivalenceChecker`, stimulus generators |
+| `qcanopy::generator` | `qcanopy/generator.hpp`, `qcanopy/dataset_io.hpp` | Pair generation and dataset I/O (`qcanopy::testgen::read_ir()`, `write_ir()`, `write_qasm()`) |
 
 ```cpp
-qcanopy::Circuit    c   = qcanopy::parse_qasm_file("generated/quickstart-qasm/cases/case-000000.a.qasm");
-qcanopy::CircuitDAG dag = qcanopy::parse_qasm_file_dag("generated/quickstart-qasm/cases/case-000000.a.qasm");
+#include "qcanopy/equiv.hpp"
+#include "qcanopy/parser.hpp"
+#include "qcanopy/stimulus.hpp"
+
+const qcanopy::Circuit a = qcanopy::parse_qasm_file("a.qasm");
+const qcanopy::Circuit b = qcanopy::parse_qasm_file("b.qasm");
+const qcanopy::EquivResult r =
+    qcanopy::EquivalenceChecker{}.check(a, b, qcanopy::haar_random_states(a.n, 16, /*seed=*/759));
+// r.equivalent, r.global_phase, and the failing stimulus if not equivalent
 ```
 
-The parser accepts OpenQASM 3.0 as the generator writes it, plus comments and
-arithmetic such as `pi/2`. It does not read OpenQASM 2.0 files, gates outside the
-generator's set, or circuits with more than 32 qubits. Errors are reported as
-`file:line:column: message`.
+`EquivalenceChecker` simulates only; the rewriter is used by the `qcanopy` tool.
 
-## Generator capabilities
+## Repository layout
 
-- Select portable JSON IR v1 or OpenQASM 3.0 output with `--format ir|qasm`.
-- Control qubit count, base gate count, gate pool, angles, label balance, and seed.
-- Plant shared prefixes within pairs and across groups of pairs.
-- Generate circuits with **1-32 qubits**. Default dense verification checks the
-  complete operator through **5 qubits**; larger cases retain construction proofs
-  and record that numerical verification was skipped.
-- Reuse generation and export functions through the `qcanopy::generator` C++ library.
-
-Gate count is not dependency depth. The prefix option controls planted sharing;
-actual sharing can change after transformations and normalization. A full shared
-prefix does not establish circuit equivalence.
+| Path | Contents |
+|---|---|
+| `include/qcanopy/` | Public C++ headers |
+| `src/ir`, `src/parser`, `src/rewrite`, `src/sim`, `src/equiv`, `src/generator` | The C++ libraries above |
+| `src/cli/` | The `qcanopy` tool: one file per command (`commands.hpp` lists them) |
+| `rewriting/` | Python rewriting module: verified rule library, classifier and pair prover |
+| `tests/` | C++ unit tests and CLI tests (run with `ctest`) |
+| `docs/` | Generator and parser guides |
 
 ## Documentation
 
-- [Quick user guide](docs/generator_quickstart.md): build, commands, key options,
-  output files, verification, and common errors.
-- [Generator reference](docs/test_case_generator.md): complete CLI contract,
-  constructions, reproducibility, serialization schemas, and C++ API.
-- [Parser quick start](docs/parser_quickstart.md): parsing generated datasets,
-  the C++ calls, accepted input, how parsed circuits relate to IR files, and errors.
-- [Peeling algorithm](src/rewrite/algorithm.md): matching prefix/suffix removal.
-- [Python DAG rewriting interface](rewriting/README.md): SWAP removal with output
-  mappings, fixed-library boundary classification, optional overlap, and bounded
-  circuit-pair proofs. This standalone Python module exchanges JSON with the
-  generator; it does not require a C++ build or provide simulator integration.
+- [Generator quick start](docs/generator_quickstart.md): build, commands, key options,
+  output files, verification and common errors.
+- [Generator reference](docs/test_case_generator.md): the full option list,
+  constructions, reproducibility, file formats and C++ API.
+- [Parser quick start](docs/parser_quickstart.md): parsing datasets, the C++ calls,
+  accepted input, and how parsed circuits relate to IR files.
+- [Peeling algorithm](src/rewrite/algorithm.md): prefix/suffix removal.
+- [Python rewriting module](rewriting/README.md): SWAP removal, boundary
+  classification, overlap search and pair proofs, plus how its rule library was verified.
+
+## Current limits
+
+- The simulator is a CPU state-vector simulator. GPU execution and reuse of shared
+  computation across circuits are planned but not implemented yet.
+- The rewriter runs as a separate Python process (about 0.2–0.5 s per pair). For very
+  small circuits `check --no-rewrite` can be faster.
+- The rewriter runs on Linux and macOS only; on Windows `check` always simulates the
+  full circuits.
 
 Datasets written under `generated/` are Git-ignored. Generate them locally rather
-than expecting sample datasets or workspace-specific build tools in a fresh clone.
+than expecting sample datasets in a fresh clone.
