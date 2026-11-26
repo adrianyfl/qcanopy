@@ -89,9 +89,11 @@ namespace qcanopy {
         // or the stimulus is empty (an empty check would pass vacuously).
         EquivResult check(const Circuit& a, const Circuit& b, const Stimulus& stimulus) const;
 
-        // Checks A against B with the Choi state: simulates choi_circuit(a, b), i.e. A^* on the
-        // first half and B on the second half, on choi_state(a.n) and tests that the output is a
-        // phase times the input. A single run, and a proof (up to tol) either way.
+        // Checks A against B with the Choi state. Pass the two ORIGINAL circuits, exactly as you
+        // would to check(): the conjugation is done internally. Builds choi_state(a.n), simulates
+        // choi_circuit(a, b) on it (a conjugated on the first half, b as-is on the second half),
+        // and tests that the output is a phase times the input. A single run, and a proof
+        // (up to tol) either way.
         // The result reads exactly like check(): global_phase is phi with A ~= e^{i phi} B,
         // stimuli_checked is 1, and a failure is Mismatch::State at index 0, kind Choi.
         // Throws std::invalid_argument if a.n != b.n or 2 * a.n > kMaxQubits.
@@ -134,7 +136,8 @@ namespace qcanopy {
     // Throws std::invalid_argument if n < 0 or 2n > kMaxQubits.
     Circuit choi_prep_circuit(int n);
 
-    // The 2n-qubit circuit R^* (x) C: R's gates conjugated on qubits 0..n-1, C's gates shifted to
+    // The 2n-qubit circuit R^* (x) C, from the original (unconjugated) R and C: this function
+    // conjugates R's gates itself and places them on qubits 0..n-1, with C's gates shifted to
     // qubits n..2n-1, global phase c.global_phase - r.global_phase. Applied to choi_state(n) it
     // yields (I (x) C R^dagger)|Phi>. Throws std::invalid_argument if r.n != c.n or 2n > kMaxQubits.
     Circuit choi_circuit(const Circuit& r, const Circuit& c);
